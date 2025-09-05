@@ -24,6 +24,7 @@ bec_dbt/.user.yml
 # Ignore Meltano temporary files
 .meltano/
 meltano.db
+plugins/
 
 # Ignore log files and temporary files
 *.log
