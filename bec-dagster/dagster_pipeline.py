@@ -269,7 +269,7 @@ def _1_staging_to_bigquery(config: PipelineConfig) -> Dict[str, Any]:
             conn.close()
 
             # RUBY - INDICATOR FOR SUPABASE TO BIGQUERY
-            #supabase_tables = False
+            supabase_tables = False
             
             if supabase_tables:
                 logger.info(f"📊 Discovered {len(supabase_tables)} tables from Supabase via PostgreSQL: {supabase_tables}")
@@ -1695,8 +1695,8 @@ def _2g_processing_stg_customers(config: PipelineConfig, _1_staging_to_bigquery:
         raise Exception(error_msg)
 
 
-@asset(group_name="Transformation", deps=[_1_staging_to_bigquery])
-def _2h_processing_stg_geolocations(config: PipelineConfig, _1_staging_to_bigquery: Dict[str, Any]) -> Dict[str, Any]:
+@asset(group_name="Transformation", deps=[_1_staging_to_bigquery, _2f_processing_stg_sellers, _2g_processing_stg_customers])
+def _2h_processing_stg_geolocations(config: PipelineConfig, _1_staging_to_bigquery: Dict[str, Any], _2f_processing_stg_sellers: Dict[str, Any], _2g_processing_stg_customers: Dict[str, Any]) -> Dict[str, Any]:
     """
     Process and create staging table for geolocations using dbt SQL file
     
@@ -1707,6 +1707,8 @@ def _2h_processing_stg_geolocations(config: PipelineConfig, _1_staging_to_bigque
     
     Args:
         _1_staging_to_bigquery: Result from staging to BigQuery
+        _2f_processing_stg_sellers: Result from staging sellers processing
+        _2g_processing_stg_customers: Result from staging customers processing
         
     Returns:
         Geolocations staging processing results
@@ -1737,16 +1739,16 @@ def _2h_processing_stg_geolocations(config: PipelineConfig, _1_staging_to_bigque
         logger.info(f"Model file: models/staging/stg_geolocations.sql")
         logger.info(f"Target dataset: olist_data_staging")
         
-        # Execute dbt run for stg_geolocations model specifically
+        # Execute dbt run for stg_geolocations model specifically with explicit env var exports
+        bash_command = f'''export BQ_PROJECT_ID="{env_vars["BQ_PROJECT_ID"]}" && export TARGET_BIGQUERY_DATASET="{env_vars["TARGET_BIGQUERY_DATASET"]}" && export TARGET_STAGING_DATASET="{env_vars["TARGET_STAGING_DATASET"]}" && export TARGET_RAW_DATASET="{env_vars["TARGET_RAW_DATASET"]}" && eval "$(conda shell.bash hook)" && conda activate bec && dbt run --models stg_geolocations --no-version-check'''
+        
         dbt_result = subprocess.run([
-            'bash', '-c', 
-            'eval "$(conda shell.bash hook)" && conda activate bec && dbt run --models stg_geolocations --no-version-check'
+            'bash', '-c', bash_command
         ],
             capture_output=True,
             text=True,
             cwd=dbt_dir,
             timeout=300,  # 5 minute timeout
-            env=env_vars
         )
         
         if dbt_result.returncode != 0:
@@ -1760,7 +1762,16 @@ def _2h_processing_stg_geolocations(config: PipelineConfig, _1_staging_to_bigque
             for line in dbt_result.stderr.split('\n')[-10:]:  # Show last 10 lines
                 if line.strip():
                     logger.error(f"   {line.strip()}")
-            raise Exception(f"dbt stg_geolocations model failed: {dbt_result.stderr}")
+            
+            return {
+                "status": "failed",
+                "error": f"dbt stg_geolocations model failed: {dbt_result.stderr}",
+                "failure_type": "dbt_execution_error",
+                "table_name": "stg_geolocations",
+                "target_dataset": config.staging_bigquery_dataset,
+                "dbt_stdout": dbt_result.stdout[-1000:] if dbt_result.stdout else "",
+                "dbt_stderr": dbt_result.stderr[-1000:] if dbt_result.stderr else ""
+            }
         
         logger.info("✅ dbt stg_geolocations model completed successfully")
         logger.info("📋 dbt run output:")
@@ -1832,11 +1843,23 @@ def _2h_processing_stg_geolocations(config: PipelineConfig, _1_staging_to_bigque
     except subprocess.TimeoutExpired:
         error_msg = "dbt stg_geolocations model timed out after 5 minutes"
         logger.error(f"❌ {error_msg}")
-        raise Exception(error_msg)
+        return {
+            "status": "failed",
+            "error": error_msg,
+            "failure_type": "timeout_error",
+            "table_name": "stg_geolocations",
+            "target_dataset": config.staging_bigquery_dataset
+        }
     except Exception as e:
         error_msg = f"dbt stg_geolocations model execution failed: {str(e)}"
         logger.error(f"❌ {error_msg}")
-        raise Exception(error_msg)
+        return {
+            "status": "failed",
+            "error": error_msg,
+            "failure_type": "execution_error", 
+            "table_name": "stg_geolocations",
+            "target_dataset": config.staging_bigquery_dataset
+        }
 
 
 @asset(group_name="Transformation", deps=[_1_staging_to_bigquery])
@@ -2378,6 +2401,17 @@ def _3g_processing_dim_geolocations(config: PipelineConfig, _2h_processing_stg_g
     logger = get_dagster_logger()
     logger.info("🔄 Processing warehouse dimension: dim_geolocations using dbt warehouse model")
     
+    # Check if dependency failed
+    if _2h_processing_stg_geolocations.get("status") == "failed":
+        logger.error("❌ _2h_processing_stg_geolocations dependency failed, skipping dim_geolocations")
+        return {
+            "status": "failed",
+            "error": f"Dependency _2h_processing_stg_geolocations failed: {_2h_processing_stg_geolocations.get('error', 'Unknown error')}",
+            "failure_type": "dependency_failure",
+            "table_name": "dim_geolocations",
+            "target_dataset": config.bigquery_dataset
+        }
+    
     dbt_dir = "/Applications/RF/NTU/SCTP in DSAI/supabase-meltano-bq-dagster/bec_dbt"
     
     try:
@@ -2393,20 +2427,39 @@ def _3g_processing_dim_geolocations(config: PipelineConfig, _2h_processing_stg_g
         
         logger.info("🔄 Running dbt warehouse model: dim_geolocations...")
         
+        # Execute dbt run for dim_geolocations model with explicit env var exports
+        bash_command = f'''export BQ_PROJECT_ID="{env_vars["BQ_PROJECT_ID"]}" && export TARGET_BIGQUERY_DATASET="{env_vars["TARGET_BIGQUERY_DATASET"]}" && export TARGET_STAGING_DATASET="{env_vars["TARGET_STAGING_DATASET"]}" && export TARGET_RAW_DATASET="{env_vars["TARGET_RAW_DATASET"]}" && eval "$(conda shell.bash hook)" && conda activate bec && dbt run --select dim_geolocations --no-version-check'''
+        
         dbt_result = subprocess.run([
-            'bash', '-c', 
-            'eval "$(conda shell.bash hook)" && conda activate bec && dbt run --select dim_geolocations --no-version-check'
+            'bash', '-c', bash_command
         ],
             capture_output=True,
             text=True,
             cwd=dbt_dir,
-            timeout=300,
-            env=env_vars
+            timeout=300
         )
         
         if dbt_result.returncode != 0:
-            logger.error(f"❌ dbt dim_geolocations failed: {dbt_result.stderr}")
-            raise Exception(f"dbt dim_geolocations failed: {dbt_result.stderr}")
+            logger.error(f"❌ dbt dim_geolocations model failed with return code: {dbt_result.returncode}")
+            logger.error("📋 dbt error details:")
+            logger.error(f"🔍 dbt stdout:")
+            for line in dbt_result.stdout.split('\n')[-10:]:
+                if line.strip():
+                    logger.error(f"   {line.strip()}")
+            logger.error(f"🔍 dbt stderr:")
+            for line in dbt_result.stderr.split('\n')[-10:]:
+                if line.strip():
+                    logger.error(f"   {line.strip()}")
+            
+            return {
+                "status": "failed",
+                "error": f"dbt dim_geolocations model failed: {dbt_result.stderr}",
+                "failure_type": "dbt_execution_error",
+                "table_name": "dim_geolocations",
+                "target_dataset": config.bigquery_dataset,
+                "dbt_stdout": dbt_result.stdout[-1000:] if dbt_result.stdout else "",
+                "dbt_stderr": dbt_result.stderr[-1000:] if dbt_result.stderr else ""
+            }
         
         logger.info("✅ dim_geolocations warehouse model completed successfully")
         
@@ -2419,10 +2472,26 @@ def _3g_processing_dim_geolocations(config: PipelineConfig, _2h_processing_stg_g
             "dbt_model_path": "warehouse/dim_geolocations.sql"
         }
         
+    except subprocess.TimeoutExpired:
+        error_msg = "dbt dim_geolocations model timed out after 5 minutes"
+        logger.error(f"❌ {error_msg}")
+        return {
+            "status": "failed",
+            "error": error_msg,
+            "failure_type": "timeout_error",
+            "table_name": "dim_geolocations",
+            "target_dataset": config.bigquery_dataset
+        }
     except Exception as e:
         error_msg = f"dim_geolocations warehouse processing failed: {str(e)}"
         logger.error(f"❌ {error_msg}")
-        raise Exception(error_msg)
+        return {
+            "status": "failed",
+            "error": error_msg,
+            "failure_type": "execution_error",
+            "table_name": "dim_geolocations",
+            "target_dataset": config.bigquery_dataset
+        }
 
 
 @asset(group_name="Warehouse", deps=[_1_staging_to_bigquery])

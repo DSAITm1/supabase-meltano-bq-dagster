@@ -5,6 +5,8 @@ __pycache__/
 *.env
 .env.*
 *.json
+*.pyc
+*.pyo
 
 # Ignore Dagster temporary files
 .tmp_dagster_home_*/
@@ -18,6 +20,15 @@ bec_dbt/project-olist-470307.json
 bec_dbt/logs/
 bec_dbt/target/
 bec_dbt/.user.yml
+
+# Ignore Meltano temporary files
+.meltano/
+meltano.db
+
+# Ignore log files and temporary files
+*.log
+*.tmp
+logs/
 
 # Ignore macOS system files
 .DS_Store
