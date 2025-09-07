@@ -1,0 +1,48 @@
+# Cloud Run service configuration for Supabase-BigQuery Pipeline
+runtime: custom
+env: flex
+
+automatic_scaling:
+  min_num_instances: 0
+  max_num_instances: 10
+  cool_down_period_sec: 180
+  target_cpu_utilization: 0.6
+
+resources:
+  cpu: 1
+  memory_gb: 2
+  disk_size_gb: 10
+
+env_variables:
+  BQ_PROJECT_ID: "your-gcp-project-id"
+  BQ_RAW_DATASET: "bec_raw_olist"
+  BQ_STAGING_DATASET: "bec_staging_olist"
+  BQ_WAREHOUSE_DATASET: "bec_warehouse_olist"
+  BQ_ANALYTICS_DATASET: "bec_analytics_olist"
+  MOCK_EXECUTION: "false"
+  DBT_TARGET: "production"
+
+network:
+  instance_tag: supabase-pipeline
+
+health_check:
+  enable_health_check: true
+  check_interval_sec: 30
+  timeout_sec: 10
+  unhealthy_threshold: 3
+  healthy_threshold: 2
+
+liveness_check:
+  path: "/health"
+  check_interval_sec: 30
+  timeout_sec: 4
+  failure_threshold: 2
+  success_threshold: 1
+
+readiness_check:
+  path: "/ready" 
+  check_interval_sec: 5
+  timeout_sec: 4
+  failure_threshold: 2
+  success_threshold: 1
+  app_start_timeout_sec: 300

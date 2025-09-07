@@ -61,8 +61,7 @@ supabase-meltano-bq-dagster/
 │   │   │   ├── stg_customers.sql # 👥 Customers staging model
 │   │   │   ├── stg_products.sql  # 📦 Products staging model
 │   │   │   └── ... (8 more staging models)
-│   │   ├── marts/               # 📊 Business logic & dimensions
-│   │   │   └── dimensions/      # 📋 Dimension tables
+│   │   ├── warehouse/            # 📋 Dimension tables
 │   │   │       ├── dim_customers.sql    # 👥 Customer dimension
 │   │   │       ├── dim_products.sql     # 📦 Product dimension
 │   │   │       ├── dim_orders.sql       # 🛒 Order dimension
@@ -281,17 +280,539 @@ print(f'Status: {result[\"status\"]}')
 
 ## 🐳 Docker Deployment
 
-The pipeline is optimized for Docker deployment using Meltano and dbt:
+The pipeline is fully containerized with multi-service Docker deployment for production environments.
+
+### 🏗️ Container Architecture
+
+- **Main Pipeline**: Comprehensive Dagster orchestration with 26-function workflow
+- **Meltano ELT**: Supabase PostgreSQL to BigQuery data extraction
+- **dbt Transformations**: Multi-layer BigQuery transformations (staging → warehouse → analytics)
+
+### 📋 Prerequisites
+
+1. **Docker & Docker Compose**: Install latest versions
+2. **Google Cloud Credentials**: Service account JSON files
+3. **Environment Configuration**: Configure `.env` file
+4. **Network Access**: Supabase and BigQuery connectivity
+
+### 🚀 Quick Start
 
 ```bash
-cd bec-meltano/
-# Production deployment with Meltano containerization
-meltano run tap-postgres target-bigquery
+# 1. Clone and navigate to project
+cd supabase-meltano-bq-dagster/
 
-# Or use dbt Docker deployment for transformations
-cd bec_dbt/
-dbt run --target warehouse
+# 2. Configure environment
+cp .env.example .env
+# Edit .env with your actual credentials
+
+# 3. Ensure credential files are in place
+ls bec_dbt/service-account-key.json
+ls bec-meltano/bigquery-credentials.json
+
+# 4. Build and start all services
+docker-compose up --build
+
+# 5. Access Dagster web UI
+open http://localhost:3000
 ```
+
+### 🛠️ Service-Specific Deployment
+
+#### Complete Pipeline (Recommended)
+```bash
+# Build and run all services with logs
+docker-compose up --build --force-recreate
+
+# Run in background
+docker-compose up -d --build
+
+# View logs
+docker-compose logs -f pipeline
+```
+
+#### Individual Services
+```bash
+# Meltano ELT only
+docker-compose up meltano --build
+
+# dbt transformations only  
+docker-compose up dbt --build
+
+# Main pipeline only
+docker-compose up pipeline --build
+```
+
+### 🔧 Production Deployment
+
+#### 1. Environment Configuration
+```bash
+# Create production environment file
+cp .env.example .env.production
+
+# Edit with production values
+vim .env.production
+```
+
+#### 2. Credential Management
+```bash
+# Ensure service account files are secure
+chmod 600 bec_dbt/service-account-key.json
+chmod 600 bec-meltano/bigquery-credentials.json
+
+# Verify JSON validity
+python -m json.tool bec_dbt/service-account-key.json
+```
+
+#### 3. Production Deployment
+```bash
+# Use production environment
+docker-compose --env-file .env.production up -d --build
+
+# Scale for high availability (if needed)
+docker-compose up -d --scale pipeline=2
+
+# Monitor health
+docker-compose ps
+docker-compose logs -f --tail=100
+```
+
+### 📊 Monitoring & Maintenance
+
+#### Health Checks
+```bash
+# Check service status
+docker-compose ps
+
+# View pipeline health
+curl http://localhost:3000/server_info
+
+# Container resource usage
+docker stats
+```
+
+#### Log Management
+```bash
+# View all logs
+docker-compose logs
+
+# Follow specific service
+docker-compose logs -f meltano
+
+# Last 100 lines with timestamps
+docker-compose logs --tail=100 -t pipeline
+```
+
+#### Maintenance Operations
+```bash
+# Update containers
+docker-compose pull
+docker-compose up -d --build
+
+# Clean up old images
+docker system prune -f
+
+# Restart specific service
+docker-compose restart pipeline
+
+# View container details
+docker-compose exec pipeline python --version
+```
+
+### 🔐 Security Best Practices
+
+1. **Credential Security**:
+   - Never commit credential files to version control
+   - Use `.dockerignore` to exclude sensitive files
+   - Mount credentials as read-only volumes
+
+2. **Network Security**:
+   - Use internal Docker networks for service communication
+   - Expose only necessary ports (3000 for Dagster UI)
+   - Consider VPN for production access
+
+3. **Container Security**:
+   - Run containers as non-root users
+   - Use minimal base images (python:3.11-slim)
+   - Regularly update dependencies
+
+### 🐛 Troubleshooting
+
+#### Common Issues
+
+**Container build failures**:
+```bash
+# Clean build cache
+docker system prune -a
+docker-compose build --no-cache
+```
+
+**Permission errors**:
+```bash
+# Fix file permissions
+sudo chown -R $USER:$USER .
+chmod 600 *.json
+```
+
+**Network connectivity**:
+```bash
+# Test network connectivity
+docker-compose exec pipeline ping google.com
+docker-compose exec meltano nslookup db.your-project.supabase.co
+```
+
+**BigQuery authentication**:
+```bash
+# Verify service account
+docker-compose exec pipeline python -c "
+from google.cloud import bigquery
+client = bigquery.Client()
+print(f'Connected to project: {client.project}')
+"
+```
+
+#### Debug Mode
+```bash
+# Run with debug logging
+MOCK_EXECUTION=true docker-compose up pipeline
+
+# Interactive debugging
+docker-compose run --rm pipeline bash
+```
+
+### 📈 Performance Optimization
+
+```bash
+# Adjust resource limits in docker-compose.yml
+services:
+  pipeline:
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+```
+
+## ☁️ Google Cloud Platform (GCP) Deployment
+
+Deploy your production-ready Supabase-BigQuery pipeline to Google Cloud Platform with automated scaling, monitoring, and enterprise-grade security.
+
+### 🏗️ GCP Architecture Options
+
+#### **Option 1: Cloud Run (Recommended for Most Cases)**
+- ✅ **Serverless**: Auto-scaling from 0 to 1000+ instances
+- ✅ **Cost-Effective**: Pay only for actual usage
+- ✅ **Managed**: No infrastructure management
+- ✅ **Fast Deployment**: Deploy in minutes
+
+#### **Option 2: Google Kubernetes Engine (GKE)**
+- ✅ **Full Control**: Complete container orchestration
+- ✅ **Multi-Service**: Complex microservices architectures
+- ✅ **Enterprise**: Advanced networking and security
+- ✅ **High Availability**: Multi-zone deployments
+
+#### **Option 3: Compute Engine**
+- ✅ **Traditional VMs**: Full OS control
+- ✅ **Custom Setup**: Specialized configurations
+- ✅ **Legacy Integration**: Existing infrastructure
+
+### 🚀 Quick GCP Deployment
+
+#### Prerequisites
+```bash
+# 1. Install Google Cloud CLI
+curl https://sdk.cloud.google.com | bash
+exec -l $SHELL
+
+# 2. Authenticate with GCP
+gcloud auth login
+gcloud auth configure-docker
+
+# 3. Set your project
+export GCP_PROJECT_ID="your-project-id"
+export GCP_REGION="us-central1"
+```
+
+#### One-Command Cloud Run Deployment
+```bash
+# Deploy to Cloud Run with automated setup
+GCP_PROJECT_ID=your-project ./deploy-gcp.sh production cloud-run
+
+# Access your pipeline
+echo "Dagster UI: https://supabase-bq-pipeline-xxx-uc.a.run.app"
+```
+
+### 🛠️ Detailed GCP Setup
+
+#### 1. Project Setup & APIs
+```bash
+# Create new GCP project (optional)
+gcloud projects create $GCP_PROJECT_ID --name="Supabase Pipeline"
+gcloud config set project $GCP_PROJECT_ID
+
+# Enable required APIs
+gcloud services enable \
+    cloudbuild.googleapis.com \
+    run.googleapis.com \
+    container.googleapis.com \
+    bigquery.googleapis.com \
+    secretmanager.googleapis.com \
+    scheduler.googleapis.com
+```
+
+#### 2. BigQuery Setup
+```bash
+# Create BigQuery datasets
+bq mk --project_id=$GCP_PROJECT_ID bec_raw_olist
+bq mk --project_id=$GCP_PROJECT_ID bec_staging_olist
+bq mk --project_id=$GCP_PROJECT_ID bec_warehouse_olist
+bq mk --project_id=$GCP_PROJECT_ID bec_analytics_olist
+
+# Set up service account
+gcloud iam service-accounts create pipeline-service \
+    --display-name="Supabase Pipeline Service Account"
+
+# Grant BigQuery permissions
+gcloud projects add-iam-policy-binding $GCP_PROJECT_ID \
+    --member="serviceAccount:pipeline-service@$GCP_PROJECT_ID.iam.gserviceaccount.com" \
+    --role="roles/bigquery.admin"
+```
+
+#### 3. Secret Management
+```bash
+# Store sensitive credentials in Secret Manager
+echo "your-supabase-url" | gcloud secrets create supabase-url --data-file=-
+echo "your-supabase-password" | gcloud secrets create supabase-password --data-file=-
+echo "your-sendgrid-key" | gcloud secrets create sendgrid-api-key --data-file=-
+
+# Upload service account key
+gcloud secrets create gcp-service-account-key \
+    --data-file=bec_dbt/service-account-key.json
+```
+
+#### 4. Container Registry Setup
+```bash
+# Build and push images to Container Registry
+docker build -t gcr.io/$GCP_PROJECT_ID/supabase-bq-pipeline:latest .
+docker push gcr.io/$GCP_PROJECT_ID/supabase-bq-pipeline:latest
+
+docker build -f Dockerfile.meltano -t gcr.io/$GCP_PROJECT_ID/meltano-elt:latest .
+docker push gcr.io/$GCP_PROJECT_ID/meltano-elt:latest
+```
+
+### 🔄 Cloud Run Deployment
+
+#### Deploy Main Pipeline
+```bash
+gcloud run deploy supabase-bq-pipeline \
+    --image gcr.io/$GCP_PROJECT_ID/supabase-bq-pipeline:latest \
+    --platform managed \
+    --region $GCP_REGION \
+    --allow-unauthenticated \
+    --memory 2Gi \
+    --cpu 1 \
+    --timeout 3600 \
+    --set-env-vars "BQ_PROJECT_ID=$GCP_PROJECT_ID" \
+    --set-secrets "SUPABASE_URL=supabase-url:latest,SUPABASE_DB_PASSWORD=supabase-password:latest" \
+    --port 3000
+```
+
+#### Set Up Automated Scheduling
+```bash
+# Daily pipeline execution at 2 AM UTC
+SERVICE_URL=$(gcloud run services describe supabase-bq-pipeline --region=$GCP_REGION --format='value(status.url)')
+
+gcloud scheduler jobs create http pipeline-daily \
+    --schedule="0 2 * * *" \
+    --uri="$SERVICE_URL/run-pipeline" \
+    --http-method=POST \
+    --time-zone="UTC"
+```
+
+### ⚙️ GKE Deployment (Enterprise)
+
+#### Create GKE Cluster
+```bash
+# Create production-ready GKE cluster
+gcloud container clusters create pipeline-cluster \
+    --region=$GCP_REGION \
+    --num-nodes=2 \
+    --enable-autoscaling \
+    --min-nodes=1 \
+    --max-nodes=5 \
+    --machine-type=e2-standard-2 \
+    --enable-network-policy \
+    --enable-ip-alias
+
+# Get cluster credentials
+gcloud container clusters get-credentials pipeline-cluster --region=$GCP_REGION
+```
+
+#### Deploy to Kubernetes
+```bash
+# Apply Kubernetes manifests
+sed "s/YOUR_PROJECT_ID/$GCP_PROJECT_ID/g" k8s-deployment.yaml | kubectl apply -f -
+
+# Check deployment status
+kubectl get pods -n supabase-pipeline
+kubectl get services -n supabase-pipeline
+
+# Access Dagster UI
+kubectl port-forward service/dagster-service 3000:80 -n supabase-pipeline
+```
+
+### 📊 Monitoring & Operations
+
+#### Cloud Monitoring Setup
+```bash
+# Enable monitoring
+gcloud services enable monitoring.googleapis.com
+
+# Create alerting policies
+gcloud alpha monitoring policies create \
+    --policy-from-file=monitoring-policy.yaml
+```
+
+#### View Logs
+```bash
+# Cloud Run logs
+gcloud logs read "resource.type=cloud_run_revision AND resource.labels.service_name=supabase-bq-pipeline"
+
+# GKE logs  
+kubectl logs -f deployment/dagster-pipeline -n supabase-pipeline
+
+# BigQuery job logs
+bq ls -j --max_results=10
+```
+
+#### Health Checks
+```bash
+# Check Cloud Run service
+curl https://supabase-bq-pipeline-xxx-uc.a.run.app/health
+
+# Check GKE service
+kubectl get pods -n supabase-pipeline -w
+```
+
+### 💰 Cost Optimization
+
+#### Cloud Run Cost Management
+```bash
+# Set CPU allocation (only during requests)
+gcloud run services update supabase-bq-pipeline \
+    --cpu-allocation=request-only \
+    --region=$GCP_REGION
+
+# Configure minimum instances for warm starts
+gcloud run services update supabase-bq-pipeline \
+    --min-instances=0 \
+    --max-instances=10 \
+    --region=$GCP_REGION
+```
+
+#### BigQuery Cost Control
+```bash
+# Set query cost limits
+bq query --use_legacy_sql=false \
+    --maximum_bytes_billed=1000000 \
+    "SELECT COUNT(*) FROM \`$GCP_PROJECT_ID.bec_analytics_olist.customer_analytics\`"
+```
+
+### 🔐 Production Security
+
+#### IAM Best Practices
+```bash
+# Create least-privilege service account
+gcloud iam service-accounts create pipeline-minimal \
+    --display-name="Pipeline Minimal Access"
+
+# Grant only necessary permissions
+gcloud projects add-iam-policy-binding $GCP_PROJECT_ID \
+    --member="serviceAccount:pipeline-minimal@$GCP_PROJECT_ID.iam.gserviceaccount.com" \
+    --role="roles/bigquery.dataEditor"
+```
+
+#### Network Security
+```bash
+# Create VPC for secure communication
+gcloud compute networks create pipeline-vpc --subnet-mode=custom
+
+# Create subnet with private IP ranges
+gcloud compute networks subnets create pipeline-subnet \
+    --network=pipeline-vpc \
+    --range=10.0.0.0/24 \
+    --region=$GCP_REGION
+```
+
+### 🚨 Troubleshooting GCP Deployment
+
+#### Common Issues
+
+**Authentication Errors**:
+```bash
+# Re-authenticate
+gcloud auth login
+gcloud auth configure-docker
+
+# Check active account
+gcloud auth list
+```
+
+**Permission Denied**:
+```bash
+# Check project permissions
+gcloud projects get-iam-policy $GCP_PROJECT_ID
+
+# Grant necessary roles
+gcloud projects add-iam-policy-binding $GCP_PROJECT_ID \
+    --member="user:your-email@domain.com" \
+    --role="roles/editor"
+```
+
+**Container Build Failures**:
+```bash
+# Check Cloud Build logs
+gcloud builds list --limit=5
+
+# Build locally and push
+docker build . -t gcr.io/$GCP_PROJECT_ID/supabase-bq-pipeline:debug
+docker push gcr.io/$GCP_PROJECT_ID/supabase-bq-pipeline:debug
+```
+
+**Service Not Responding**:
+```bash
+# Check service logs
+gcloud run services logs read supabase-bq-pipeline --region=$GCP_REGION
+
+# Verify environment variables
+gcloud run services describe supabase-bq-pipeline --region=$GCP_REGION
+```
+
+### 📋 Production Checklist
+
+- [ ] ✅ GCP project created with billing enabled
+- [ ] ✅ Required APIs enabled (Cloud Run, BigQuery, Secret Manager)
+- [ ] ✅ Service account created with minimal permissions
+- [ ] ✅ BigQuery datasets created (raw, staging, warehouse, analytics)
+- [ ] ✅ Secrets stored in Secret Manager
+- [ ] ✅ Container images built and pushed to Container Registry
+- [ ] ✅ Cloud Run service deployed with health checks
+- [ ] ✅ Cloud Scheduler configured for automated runs
+- [ ] ✅ Monitoring and alerting set up
+- [ ] ✅ Backup and disaster recovery planned
+- [ ] ✅ Cost monitoring and budgets configured
+
+### 🎯 Next Steps
+
+1. **Deploy to GCP**: Use `./deploy-gcp.sh production cloud-run`
+2. **Configure Monitoring**: Set up alerts for pipeline failures
+3. **Test Pipeline**: Run end-to-end validation
+4. **Scale Setup**: Configure auto-scaling based on demand
+5. **Optimize Costs**: Set up BigQuery slot commitments if needed
+
+Your Supabase-BigQuery pipeline is now ready for enterprise-grade production deployment on Google Cloud Platform! 🚀
 
 ## 🤝 Contributing
 

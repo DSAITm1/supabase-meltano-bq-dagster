@@ -1,0 +1,113 @@
+version: '3.8'
+
+services:
+  # Main Pipeline Service
+  pipeline:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: supabase-bq-pipeline
+    environment:
+      # BigQuery Configuration
+      - BQ_PROJECT_ID=${BQ_PROJECT_ID}
+      - BQ_RAW_DATASET=${BQ_RAW_DATASET}
+      - BQ_STAGING_DATASET=${BQ_STAGING_DATASET}
+      - BQ_WAREHOUSE_DATASET=${BQ_WAREHOUSE_DATASET}
+      - BQ_ANALYTICS_DATASET=${BQ_ANALYTICS_DATASET}
+      
+      # Supabase Configuration
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - SUPABASE_DB_HOST=${SUPABASE_DB_HOST}
+      - SUPABASE_DB_PORT=${SUPABASE_DB_PORT}
+      - SUPABASE_DB_NAME=${SUPABASE_DB_NAME}
+      - SUPABASE_DB_USER=${SUPABASE_DB_USER}
+      - SUPABASE_DB_PASSWORD=${SUPABASE_DB_PASSWORD}
+      
+      # Email Configuration
+      - SENDGRID_API_KEY=${SENDGRID_API_KEY}
+      - EMAIL_FROM=${EMAIL_FROM}
+      - EMAIL_TO=${EMAIL_TO}
+      
+      # Pipeline Configuration
+      - MOCK_EXECUTION=false
+      - DBT_TARGET=production
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+      - ./bec_dbt/service-account-key.json:/app/bec_dbt/service-account-key.json:ro
+      - ./bec-meltano/bigquery-credentials.json:/app/bec-meltano/bigquery-credentials.json:ro
+    ports:
+      - "3000:3000"  # Dagster web server
+    networks:
+      - pipeline-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/server_info"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Meltano ELT Service
+  meltano:
+    build:
+      context: .
+      dockerfile: Dockerfile.meltano
+    container_name: meltano-elt
+    environment:
+      # Inherit same environment variables as pipeline
+      - BQ_PROJECT_ID=${BQ_PROJECT_ID}
+      - BQ_RAW_DATASET=${BQ_RAW_DATASET}
+      - SUPABASE_DB_HOST=${SUPABASE_DB_HOST}
+      - SUPABASE_DB_PORT=${SUPABASE_DB_PORT}
+      - SUPABASE_DB_NAME=${SUPABASE_DB_NAME}
+      - SUPABASE_DB_USER=${SUPABASE_DB_USER}
+      - SUPABASE_DB_PASSWORD=${SUPABASE_DB_PASSWORD}
+    volumes:
+      - ./bec-meltano:/app
+      - ./logs:/app/logs
+      - ./bec-meltano/bigquery-credentials.json:/app/bigquery-credentials.json:ro
+    working_dir: /app
+    command: ["meltano", "run", "tap-postgres", "target-bigquery"]
+    networks:
+      - pipeline-network
+    restart: "no"  # Run once for ELT
+    depends_on:
+      - pipeline
+
+  # dbt Transformations Service
+  dbt:
+    build:
+      context: .
+      dockerfile: Dockerfile.dbt
+    container_name: dbt-transforms
+    environment:
+      - BQ_PROJECT_ID=${BQ_PROJECT_ID}
+      - BQ_STAGING_DATASET=${BQ_STAGING_DATASET}
+      - BQ_WAREHOUSE_DATASET=${BQ_WAREHOUSE_DATASET}
+      - BQ_ANALYTICS_DATASET=${BQ_ANALYTICS_DATASET}
+      - DBT_TARGET=production
+    volumes:
+      - ./bec_dbt:/app
+      - ./logs:/app/logs
+      - ./bec_dbt/service-account-key.json:/app/service-account-key.json:ro
+    working_dir: /app
+    command: ["dbt", "run", "--target", "production"]
+    networks:
+      - pipeline-network
+    restart: "no"  # Run once for transformations
+    depends_on:
+      - meltano
+
+networks:
+  pipeline-network:
+    driver: bridge
+
+volumes:
+  pipeline-logs:
+    driver: local
+  pipeline-data:
+    driver: local

@@ -1,0 +1,131 @@
+# Google Cloud Platform Deployment Guide
+# Complete deployment instructions for Supabase-BigQuery Pipeline
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: supabase-pipeline
+  labels:
+    app: supabase-bq-pipeline
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dagster-pipeline
+  namespace: supabase-pipeline
+  labels:
+    app: dagster-pipeline
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dagster-pipeline
+  template:
+    metadata:
+      labels:
+        app: dagster-pipeline
+    spec:
+      serviceAccountName: pipeline-service-account
+      containers:
+      - name: dagster-pipeline
+        image: gcr.io/YOUR_PROJECT_ID/supabase-bq-pipeline:latest
+        ports:
+        - containerPort: 3000
+        env:
+        - name: BQ_PROJECT_ID
+          valueFrom:
+            secretKeyRef:
+              name: pipeline-secrets
+              key: bq-project-id
+        - name: SUPABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: pipeline-secrets
+              key: supabase-url
+        - name: SUPABASE_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: pipeline-secrets
+              key: supabase-password
+        - name: SENDGRID_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: pipeline-secrets
+              key: sendgrid-api-key
+        volumeMounts:
+        - name: service-account-key
+          mountPath: /app/credentials
+          readOnly: true
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /server_info
+            port: 3000
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /server_info
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+      volumes:
+      - name: service-account-key
+        secret:
+          secretName: gcp-service-account
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dagster-service
+  namespace: supabase-pipeline
+spec:
+  selector:
+    app: dagster-pipeline
+  ports:
+  - port: 80
+    targetPort: 3000
+  type: LoadBalancer
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: meltano-elt
+  namespace: supabase-pipeline
+spec:
+  schedule: "0 2 * * *"  # Run daily at 2 AM
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: pipeline-service-account
+          containers:
+          - name: meltano
+            image: gcr.io/YOUR_PROJECT_ID/meltano-elt:latest
+            command: ["meltano", "run", "tap-postgres", "target-bigquery"]
+            env:
+            - name: SUPABASE_DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: pipeline-secrets
+                  key: supabase-host
+            - name: SUPABASE_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pipeline-secrets
+                  key: supabase-password
+            volumeMounts:
+            - name: service-account-key
+              mountPath: /app/credentials
+              readOnly: true
+          volumes:
+          - name: service-account-key
+            secret:
+              secretName: gcp-service-account
+          restartPolicy: OnFailure

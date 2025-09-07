@@ -1,0 +1,121 @@
+# Docker ignore patterns for Supabase-BigQuery Pipeline
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.conda/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+*.out
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+
+# dbt
+bec_dbt/target/
+bec_dbt/dbt_packages/
+bec_dbt/logs/
+
+# Meltano
+bec-meltano/.meltano/
+bec-meltano/output/
+bec-meltano/logs/
+
+# Dagster
+bec-dagster/__pycache__/
+
+# Credentials (CRITICAL - Never include in containers)
+*.json
+*.key
+*.pem
+*.p12
+service-account-key.json
+bigquery-credentials.json
+dsai-*-key.json
+infinite-byte-*-key.json
+
+# Environment files
+.env*
+!.env.example
+
+# Data files
+*.csv
+*.parquet
+*.json.gz
+data/
+
+# Test files
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Documentation build
+docs/_build/
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+*.ipynb
+
+# Git
+.git/
+.gitignore
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# README and documentation
+README.md
+*.md
+!requirements*.yaml
