@@ -1,7 +1,7 @@
 {{ config(materialized='table') }}
 
 with source as (
-    select * from {{ source('staging', 'supabase_olist_geolocation_dataset') }}
+    select * from {{ source('raw', 'geolocation') }}
 ),
 deduplicated as (
     select 
@@ -63,7 +63,7 @@ customer_zips as (
         LOWER(TRIM(customer_city)) as city,
         UPPER(TRIM(customer_state)) as state,
         'CUSTOMER' as source_type
-    from {{ source('staging', 'stg_customers')  }}
+    from {{ ref('stg_customers')  }}
     where customer_zip_code_prefix is not null
         and LENGTH(LPAD(CAST(customer_zip_code_prefix AS STRING), 5, '0')) = 5
         and customer_city is not null
@@ -76,7 +76,7 @@ seller_zips as (
         LOWER(TRIM(seller_city)) as city,
         UPPER(TRIM(seller_state)) as state,
         'SELLER' as source_type
-    from {{ source('staging', 'stg_sellers')  }}
+    from {{ ref('stg_sellers')  }}
     where seller_zip_code_prefix is not null
         and LENGTH(LPAD(CAST(seller_zip_code_prefix AS STRING), 5, '0')) = 5
         and seller_city is not null

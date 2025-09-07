@@ -50,7 +50,7 @@ payment_totals as (
         order_id,
         sum(payment_value) as total_payment_value,
         max(payment_installments) as max_payment_installments  -- Use max for the order
-    from {{ source('staging', 'stg_payments') }}
+    from {{ source('staging', 'stg_order_payments') }}
     group by order_id
 ),
 
@@ -125,14 +125,14 @@ fact_with_dimensions as (
     from fact_base fb
     
     -- Join with dimension tables to get surrogate keys
-    inner join {{ ref('dim_customers') }} dc on fb.customer_id = dc.customer_id
-    inner join {{ ref('dim_products') }} dp on fb.product_id = dp.product_id
-    inner join {{ ref('dim_sellers') }} ds on fb.seller_id = ds.seller_id
+    inner join {{ ref('dim_customer') }} dc on fb.customer_id = dc.customer_id
+    inner join {{ ref('dim_product') }} dp on fb.product_id = dp.product_id
+    inner join {{ ref('dim_seller') }} ds on fb.seller_id = ds.seller_id
     inner join {{ ref('dim_orders') }} do on fb.order_id = do.order_id
     
     -- Geography joins
-    left join {{ ref('dim_geolocations') }} dcg on dc.customer_zip_code_prefix = dcg.geolocation_zip_code_prefix
-    left join {{ ref('dim_geolocations') }} dsg on ds.seller_zip_code_prefix = dsg.geolocation_zip_code_prefix
+    left join {{ ref('dim_geolocation') }} dcg on dc.customer_zip_code_prefix = dcg.geolocation_zip_code_prefix
+    left join {{ ref('dim_geolocation') }} dsg on ds.seller_zip_code_prefix = dsg.geolocation_zip_code_prefix
     
     -- Payment join (get the first payment record for the order)
     left join (
@@ -140,7 +140,7 @@ fact_with_dimensions as (
             order_id,
             payment_sk,
             row_number() over (partition by order_id order by payment_sequential) as rn
-        from {{ ref('dim_payments') }}
+        from {{ ref('dim_payment') }}
     ) dpm on fb.order_id = dpm.order_id and dpm.rn = 1
 ),
 

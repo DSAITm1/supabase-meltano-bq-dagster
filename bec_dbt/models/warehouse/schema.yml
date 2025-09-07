@@ -38,35 +38,35 @@ models:
               field: order_sk
       
       - name: customer_sk
-        description: "Foreign key to dim_customers"
+        description: "Foreign key to dim_customer"
         tests:
           - not_null
           - relationships:
-              to: ref('dim_customers')
+              to: ref('dim_customer')
               field: customer_sk
       
       - name: product_sk
-        description: "Foreign key to dim_products"
+        description: "Foreign key to dim_product"
         tests:
           - not_null
           - relationships:
-              to: ref('dim_products')
+              to: ref('dim_product')
               field: product_sk
       
       - name: seller_sk
-        description: "Foreign key to dim_sellers"
+        description: "Foreign key to dim_seller"
         tests:
           - not_null
           - relationships:
-              to: ref('dim_sellers')
+              to: ref('dim_seller')
               field: seller_sk
       
       - name: payment_sk
-        description: "Foreign key to dim_payments"
+        description: "Foreign key to dim_payment"
         tests:
           - not_null
           - relationships:
-              to: ref('dim_payments')
+              to: ref('dim_payment')
               field: payment_sk
       
       - name: review_sk
@@ -92,19 +92,19 @@ models:
               field: date_sk
       
       - name: customer_geography_sk
-        description: "Foreign key to dim_geolocations"
+        description: "Foreign key to dim_geolocation"
         tests:
           - not_null
           - relationships:
-              to: ref('dim_geolocations')
+              to: ref('dim_geolocation')
               field: geolocation_sk
       
       - name: seller_geography_sk
-        description: "Foreign key to dim_geolocations"
+        description: "Foreign key to dim_geolocation"
         tests:
           - not_null
           - relationships:
-              to: ref('dim_geolocations')
+              to: ref('dim_geolocation')
               field: geolocation_sk
       
       - name: price
@@ -204,7 +204,7 @@ models:
           - accepted_values:
               values: [true, false]
 
-  - name: dim_customers
+  - name: dim_customer
     description: "Customer dimension containing detailed information about customers"
     columns:
       - name: customer_sk
@@ -244,7 +244,7 @@ models:
           - accepted_values:
               values: ['SP', 'RJ', 'MG', 'RS', 'PR', 'SC', 'BA', 'GO', 'ES', 'PE', 'CE', 'PB', 'PA', 'RN', 'AL', 'MT', 'MS', 'DF', 'PI', 'SE', 'RO', 'TO', 'AC', 'AM', 'AP', 'RR']
 
-  - name: dim_geolocations
+  - name: dim_geolocation
     description: "Geographic information for customers and sellers"
     columns:
       - name: geolocation_sk
@@ -289,7 +289,7 @@ models:
           - accepted_values:
               values: ['SP', 'RJ', 'MG', 'RS', 'PR', 'SC', 'BA', 'GO', 'ES', 'PE', 'CE', 'PB', 'PA', 'RN', 'AL', 'MT', 'MS', 'DF', 'PI', 'SE', 'RO', 'TO', 'AC', 'AM', 'AP', 'RR']
 
-  - name: dim_products
+  - name: dim_product
     description: "Product dimension containing detailed product information"
     columns:
       - name: product_sk
@@ -365,7 +365,7 @@ models:
           - dbt_utils.not_null_proportion:
               at_least: 0.95
 
-  - name: dim_sellers
+  - name: dim_seller
     description: "Seller dimension containing seller information"
     columns:
       - name: seller_sk
@@ -400,7 +400,7 @@ models:
           - accepted_values:
               values: ['SP', 'RJ', 'MG', 'RS', 'PR', 'SC', 'BA', 'GO', 'ES', 'PE', 'CE', 'PB', 'PA', 'RN', 'AL', 'MT', 'MS', 'DF', 'PI', 'SE', 'RO', 'TO', 'AC', 'AM', 'AP', 'RR']
 
-  - name: dim_payments
+  - name: dim_payment
     description: "Payment method information"
     columns:
       - name: payment_sk

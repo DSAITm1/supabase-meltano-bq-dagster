@@ -14,13 +14,35 @@ austin_bikeshare_demo:
 bec_dbt:
   outputs:
     dev:
-      dataset: "{{ env_var('TARGET_STAGING_DATASET', 'olist_data_staging') }}"
+      dataset: "{{ env_var('TARGET_STAGING_DATASET', 'dbt_olist_stg') }}"
       job_execution_timeout_seconds: 300
       job_retries: 1
       method: service-account
       project: "{{ env_var('BQ_PROJECT_ID') }}"
-      keyfile: "/Applications/RF/NTU/SCTP in DSAI/supabase-meltano-bq-dagster/bec_dbt/service-account-key.json"
-      location: US
+      keyfile: "{{ env_var('GOOGLE_APPLICATION_CREDENTIALS_PATH', 'service-account-key.json') }}"
+      location: "{{ env_var('BQ_LOCATION', 'asia-southeast1') }}"
+      priority: interactive
+      threads: 5
+      type: bigquery
+    warehouse:
+      dataset: "{{ env_var('TARGET_BIGQUERY_DATASET', 'dbt_olist_dwh') }}"
+      job_execution_timeout_seconds: 300
+      job_retries: 1
+      method: service-account
+      project: "{{ env_var('BQ_PROJECT_ID') }}"
+      keyfile: "{{ env_var('GOOGLE_APPLICATION_CREDENTIALS_PATH', 'service-account-key.json') }}"
+      location: "{{ env_var('BQ_LOCATION', 'asia-southeast1') }}"
+      priority: interactive
+      threads: 5
+      type: bigquery
+    analytics:
+      dataset: "{{ env_var('TARGET_ANALYTICAL_DATASET', 'dbt_olist_analytics') }}"
+      job_execution_timeout_seconds: 300
+      job_retries: 1
+      method: service-account
+      project: "{{ env_var('BQ_PROJECT_ID') }}"
+      keyfile: "{{ env_var('GOOGLE_APPLICATION_CREDENTIALS_PATH', 'service-account-key.json') }}"
+      location: "{{ env_var('BQ_LOCATION', 'asia-southeast1') }}"
       priority: interactive
       threads: 5
       type: bigquery

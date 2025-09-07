@@ -1,7 +1,7 @@
 {{ config(materialized='table') }}
 
 with source as (
-    select * from {{ source('staging', 'supabase_olist_order_items_dataset') }}
+    select * from {{ source('raw', 'order_items') }}
 ),
 deduplicated as (
     select 
@@ -45,8 +45,8 @@ with_quality_flags as (
         
         shipping_limit_date,
         case when shipping_limit_date is null then true else false end as shipping_limit_date_is_null,
-        case when shipping_limit_date < datetime('2016-01-01 00:00:00') then true else false end as shipping_limit_date_too_old,
-        case when shipping_limit_date > datetime(current_timestamp()) then true else false end as shipping_limit_date_is_future,
+        case when shipping_limit_date < timestamp('2016-01-01 00:00:00') then true else false end as shipping_limit_date_too_old,
+        case when shipping_limit_date > current_timestamp() then true else false end as shipping_limit_date_is_future,
         
         price,
         case when price is null then true else false end as price_is_null,

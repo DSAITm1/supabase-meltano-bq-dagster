@@ -168,24 +168,6 @@ class PipelineConfig(Config):
     analytical_bigquery_dataset: str = os.getenv("TARGET_ANALYTICAL_DATASET")
 
 
-def transform_table_name(table_name: str) -> str:
-    """
-    Transform Supabase table names to clean BigQuery table names
-    
-    Removes 'olist_' prefix and '_dataset' suffix
-    Example: 'olist_geolocation_dataset' -> 'geolocation'
-    """
-    # Remove 'olist_' prefix if present
-    if table_name.startswith('olist_'):
-        table_name = table_name[6:]  # Remove 'olist_'
-    
-    # Remove '_dataset' suffix if present
-    if table_name.endswith('_dataset'):
-        table_name = table_name[:-8]  # Remove '_dataset'
-    
-    return table_name
-
-
 def get_bq_project_id():
     """
     Helper function to get BQ_PROJECT_ID with fallback
@@ -286,7 +268,8 @@ def _1_staging_to_bigquery(config: PipelineConfig) -> Dict[str, Any]:
     if not dataset_creation_success:
         logger.warning("⚠️ Dataset creation encountered issues, but continuing with pipeline")
 
-    # 🚧 TEMPORARY SKIP: For testing functions 2, 3, 4, 5 only
+    # �🚧 TEMPORARY SKIP: For testing functions 2, 3, 4, 5 only
+    # Ruby
     SKIP_EXECUTION = False
     
     if SKIP_EXECUTION:
@@ -294,8 +277,7 @@ def _1_staging_to_bigquery(config: PipelineConfig) -> Dict[str, Any]:
         logger.info("📋 Returning mock data to allow testing of downstream functions")
         
         # Return mock data that matches expected structure
-        # Original Supabase table names
-        original_supabase_tables = [
+        mock_supabase_tables = [
             'olist_customers_dataset',
             'olist_geolocation_dataset', 
             'olist_order_items_dataset',
@@ -307,10 +289,7 @@ def _1_staging_to_bigquery(config: PipelineConfig) -> Dict[str, Any]:
             'product_category_name_translation'
         ]
         
-        # Transform table names (remove olist_ prefix and _dataset suffix)
-        mock_supabase_tables = [transform_table_name(table) for table in original_supabase_tables]
-        
-        mock_bq_tables = [f"{config.raw_bigquery_dataset}.{table}" for table in mock_supabase_tables]
+        mock_bq_tables = [f"{config.raw_bigquery_dataset}.supabase_{table}" for table in mock_supabase_tables]
         
         return {
             "bq_tables": mock_bq_tables,
@@ -322,7 +301,7 @@ def _1_staging_to_bigquery(config: PipelineConfig) -> Dict[str, Any]:
             "transfer_log": "MOCK_EXECUTION: Skipped for testing downstream functions",
             "detailed_tables": "Mock execution - all 9 tables simulated",
             "supabase_record_counts": {table: "Mock: 1000" for table in mock_supabase_tables},
-            "bigquery_record_counts": {table: "Mock: 1000" for table in mock_supabase_tables},
+            "bigquery_record_counts": {f"supabase_{table}": "Mock: 1000" for table in mock_supabase_tables},
             "status": "mock_success"
         }
 
@@ -388,16 +367,14 @@ def _1_staging_to_bigquery(config: PipelineConfig) -> Dict[str, Any]:
                 for stream in discovery_data.get('streams', []):
                     table_name = stream.get('tap_stream_id', '').replace('public-', '')
                     if 'olist' in table_name or 'product_category' in table_name:
-                        # Transform table name (remove olist_ prefix and _dataset suffix)
-                        transformed_name = transform_table_name(table_name)
-                        supabase_tables.append(transformed_name)
+                        supabase_tables.append(table_name)
                 
                 logger.info(f"📊 Discovered {len(supabase_tables)} tables via Meltano: {supabase_tables}")
                 
             except json.JSONDecodeError:
                 logger.warning("⚠️ Could not parse Meltano discovery output")
                 # Fallback to expected table list
-                original_supabase_tables = [
+                supabase_tables = [
                     'olist_customers_dataset',
                     'olist_geolocation_dataset', 
                     'olist_order_items_dataset',
@@ -408,8 +385,6 @@ def _1_staging_to_bigquery(config: PipelineConfig) -> Dict[str, Any]:
                     'olist_sellers_dataset',
                     'product_category_name_translation'
                 ]
-                # Transform table names (remove olist_ prefix and _dataset suffix)
-                supabase_tables = [transform_table_name(table) for table in original_supabase_tables]
                 logger.info(f"📋 Using fallback table list: {len(supabase_tables)} tables")
         else:
             logger.warning(f"⚠️ Meltano discovery failed: {discovery_result.stderr}")
@@ -467,9 +442,8 @@ def _1_staging_to_bigquery(config: PipelineConfig) -> Dict[str, Any]:
                         # Delete ALL existing tables (both clean and temp) for fresh start
                         for table in tables:
                             table_name = table.table_id
-                            # Check if it's related to our Supabase tables using transformed names
-                            transformed_table_names = [transform_table_name(t) for t in supabase_tables]
-                            if any(expected in table_name for expected in transformed_table_names) or table_name.startswith('supabase_'):
+                            # Check if it's related to our Supabase tables
+                            if any(expected in table_name for expected in supabase_tables) or table_name.startswith('supabase_'):
                                 tables_to_delete.append(table_name)
                         
                         logger.info(f"Found {len(tables_to_delete)} tables to DELETE for fresh start: {tables_to_delete[:3]}{'...' if len(tables_to_delete) > 3 else ''}")
@@ -550,11 +524,10 @@ def _1_staging_to_bigquery(config: PipelineConfig) -> Dict[str, Any]:
                     logger.info(f"📊 Meltano pipeline processed {records_processed:,} total records")
                     logger.info(f"✅ Successfully loaded {len(supabase_tables)} tables to BigQuery")
                     
-                    # Add successful tables to tracking using transformed names
+                    # Add successful tables to tracking
                     for table_name in supabase_tables:
-                        transformed_name = transform_table_name(table_name)
-                        all_table_names.append(transformed_name)
-                        # Meltano creates tables with specific naming pattern using original name
+                        all_table_names.append(table_name)
+                        # Meltano creates tables with specific naming pattern
                         bq_table_ref = f"{config.raw_bigquery_dataset}.public_{table_name}"
                         all_bq_tables.append(bq_table_ref)
                         
@@ -602,7 +575,7 @@ def _1_staging_to_bigquery(config: PipelineConfig) -> Dict[str, Any]:
                         dataset_ref = client.dataset(config.raw_bigquery_dataset, project=project_id)
                         tables = list(client.list_tables(dataset_ref))
                         
-                        # Categorize tables using transformed names
+                        # Categorize tables
                         clean_tables = {}
                         date_suffixed_tables = {}
                         
@@ -610,26 +583,24 @@ def _1_staging_to_bigquery(config: PipelineConfig) -> Dict[str, Any]:
                             table_name = table.table_id
                             
                             for expected_table in supabase_tables:
-                                # Use transform_table_name for clean table name
-                                transformed_name = transform_table_name(expected_table)
-                                expected_name = f"supabase_{expected_table}"  # Keep original for Meltano tables
+                                expected_name = f"supabase_{expected_table}"
                                 
-                                if table_name == transformed_name:
-                                    clean_tables[transformed_name] = table_name
+                                if table_name == expected_name:
+                                    clean_tables[expected_name] = table_name
                                 elif table_name.startswith(f"{expected_name}__"):
-                                    if transformed_name not in date_suffixed_tables:
-                                        date_suffixed_tables[transformed_name] = []
-                                    date_suffixed_tables[transformed_name].append(table_name)
+                                    if expected_name not in date_suffixed_tables:
+                                        date_suffixed_tables[expected_name] = []
+                                    date_suffixed_tables[expected_name].append(table_name)
                         
                         logger.info(f"📊 Found {len(clean_tables)} clean tables and {len(date_suffixed_tables)} groups with date-suffixed tables")
                         
                         migrated_count = 0
-                        for expected_table in supabase_tables:
-                            transformed_name = transform_table_name(expected_table)
+                        for expected_name in supabase_tables:
+                            table_name = f"supabase_{expected_name}"
                             
                             # Check if we have date-suffixed tables to migrate
-                            if transformed_name in date_suffixed_tables:
-                                date_tables = date_suffixed_tables[transformed_name]
+                            if table_name in date_suffixed_tables:
+                                date_tables = date_suffixed_tables[table_name]
                                 
                                 # Find the table with data (non-zero rows)
                                 source_table = None
@@ -646,19 +617,19 @@ def _1_staging_to_bigquery(config: PipelineConfig) -> Dict[str, Any]:
                                 
                                 if source_table and max_rows > 0:
                                     try:
-                                        # Check if clean table exists using transformed name
-                                        clean_table_id = f"{project_id}.{config.raw_bigquery_dataset}.{transformed_name}"
+                                        # Check if clean table exists
+                                        clean_table_id = f"{project_id}.{config.raw_bigquery_dataset}.{table_name}"
                                         
                                         try:
                                             # Get existing clean table
                                             clean_table_ref = client.get_table(clean_table_id)
-                                            logger.info(f"   📋 Clean table {transformed_name} exists ({clean_table_ref.num_rows} rows)")
+                                            logger.info(f"   � Clean table {table_name} exists ({clean_table_ref.num_rows} rows)")
                                             
                                             # If clean table is empty but date table has data, migrate
                                             if clean_table_ref.num_rows == 0 and max_rows > 0:
                                                 # Delete empty clean table
                                                 client.delete_table(clean_table_id)
-                                                logger.info(f"   🗑️  Deleted empty clean table: {transformed_name}")
+                                                logger.info(f"   🗑️  Deleted empty clean table: {table_name}")
                                                 
                                                 # Copy date-suffixed table to clean name
                                                 source_table_id = f"{project_id}.{config.raw_bigquery_dataset}.{source_table}"
@@ -667,10 +638,10 @@ def _1_staging_to_bigquery(config: PipelineConfig) -> Dict[str, Any]:
                                                 copy_job = client.copy_table(source_table_id, clean_table_id, job_config=job_config)
                                                 copy_job.result()  # Wait for completion
                                                 
-                                                logger.info(f"   ✅ Migrated {source_table} → {transformed_name} ({max_rows:,} rows)")
+                                                logger.info(f"   ✅ Migrated {source_table} → {table_name} ({max_rows:,} rows)")
                                                 migrated_count += 1
                                             else:
-                                                logger.info(f"   ℹ️  Clean table {transformed_name} already has data ({clean_table_ref.num_rows:,} rows)")
+                                                logger.info(f"   ℹ️  Clean table {table_name} already has data ({clean_table_ref.num_rows:,} rows)")
                                         
                                         except Exception:
                                             # Clean table doesn't exist, copy from date table
@@ -680,7 +651,7 @@ def _1_staging_to_bigquery(config: PipelineConfig) -> Dict[str, Any]:
                                             copy_job = client.copy_table(source_table_id, clean_table_id, job_config=job_config)
                                             copy_job.result()  # Wait for completion
                                             
-                                            logger.info(f"   ✅ Created {transformed_name} from {source_table} ({max_rows:,} rows)")
+                                            logger.info(f"   ✅ Created {table_name} from {source_table} ({max_rows:,} rows)")
                                             migrated_count += 1
                                         
                                         # Clean up all date-suffixed tables for this base name
@@ -696,30 +667,30 @@ def _1_staging_to_bigquery(config: PipelineConfig) -> Dict[str, Any]:
                                         logger.warning(f"   ⚠️ Could not migrate {source_table}: {str(migrate_error)}")
                                 
                                 else:
-                                    logger.info(f"   ℹ️  No data found in date-suffixed tables for {transformed_name}")
+                                    logger.info(f"   ℹ️  No data found in date-suffixed tables for {table_name}")
                             
                             else:
-                                # Check if clean table exists and has data using transformed name
-                                if transformed_name in clean_tables:
+                                # Check if clean table exists and has data
+                                if table_name in clean_tables:
                                     try:
-                                        clean_table_id = f"{project_id}.{config.raw_bigquery_dataset}.{transformed_name}"
+                                        clean_table_id = f"{project_id}.{config.raw_bigquery_dataset}.{table_name}"
                                         table_ref = client.get_table(clean_table_id)
-                                        logger.info(f"   ✅ Clean table {transformed_name} ready ({table_ref.num_rows:,} rows)")
+                                        logger.info(f"   ✅ Clean table {table_name} ready ({table_ref.num_rows:,} rows)")
                                     except Exception:
-                                        logger.warning(f"   ⚠️ Could not verify {transformed_name}")
+                                        logger.warning(f"   ⚠️ Could not verify {table_name}")
                         
                         logger.info(f"✅ Data migration completed: {migrated_count} tables migrated to clean format")
                         
-                        # Final verification using transformed names
+                        # Final verification
                         logger.info("🔍 Final table verification:")
                         for expected_table in supabase_tables:
-                            transformed_name = transform_table_name(expected_table)
+                            table_name = f"supabase_{expected_table}"
                             try:
-                                table_id = f"{project_id}.{config.raw_bigquery_dataset}.{transformed_name}"
+                                table_id = f"{project_id}.{config.raw_bigquery_dataset}.{table_name}"
                                 table_ref = client.get_table(table_id)
-                                logger.info(f"   ✅ {transformed_name}: {table_ref.num_rows:,} rows")
+                                logger.info(f"   ✅ {table_name}: {table_ref.num_rows:,} rows")
                             except Exception:
-                                logger.warning(f"   ❌ {transformed_name}: NOT FOUND")
+                                logger.warning(f"   ❌ {table_name}: NOT FOUND")
                         
                         # Cleanup temporary date-suffixed tables after verification
                         logger.info("🧹 Cleaning up temporary date-suffixed tables...")
@@ -752,10 +723,9 @@ def _1_staging_to_bigquery(config: PipelineConfig) -> Dict[str, Any]:
                     logger.warning(f"⚠️ Data migration failed: {str(postprocess_error)}")
                     logger.info("💡 Some tables may still have date suffixes")
                 
-                # Generate BigQuery table references for Supabase tables in raw dataset using transformed names
+                # Generate BigQuery table references for Supabase tables in raw dataset
                 for table_name in supabase_tables:
-                    transformed_name = transform_table_name(table_name)
-                    bq_table_ref = f"{config.raw_bigquery_dataset}.{transformed_name}"
+                    bq_table_ref = f"{config.raw_bigquery_dataset}.supabase_{table_name}"
                     all_bq_tables.append(bq_table_ref)
                     
                 logger.info(f"📁 Full raw transfer details saved to: {supabase_log_file}")
@@ -804,8 +774,8 @@ def _1_staging_to_bigquery(config: PipelineConfig) -> Dict[str, Any]:
     logger.info("📊 Getting record counts for detailed reporting...")
     supabase_counts = get_supabase_table_counts(supabase_tables if supabase_tables else [])
     
-    # Get BigQuery table names using transformed names
-    bq_table_names = [transform_table_name(table) for table in supabase_tables] if supabase_tables else []
+    # Get BigQuery table names (with supabase_ prefix)
+    bq_table_names = [f"supabase_{table}" for table in supabase_tables] if supabase_tables else []
     bigquery_counts = get_bigquery_table_counts(config.raw_bigquery_dataset, bq_table_names)
     
     # Create detailed table information
@@ -813,9 +783,9 @@ def _1_staging_to_bigquery(config: PipelineConfig) -> Dict[str, Any]:
     if supabase_tables:
         for table in supabase_tables:
             supabase_count = supabase_counts.get(table, "Unknown")
-            transformed_name = transform_table_name(table)
-            bq_count = bigquery_counts.get(transformed_name, "Unknown")
-            detailed_tables_info.append(f"{table} → {transformed_name} (Supabase: {supabase_count}, BigQuery: {bq_count})")
+            bq_table_name = f"supabase_{table}"
+            bq_count = bigquery_counts.get(bq_table_name, "Unknown")
+            detailed_tables_info.append(f"{table} (Supabase: {supabase_count}, BigQuery: {bq_count})")
     
     detailed_tables_str = " | ".join(detailed_tables_info) if detailed_tables_info else "No tables processed"
     
@@ -853,7 +823,7 @@ def _2a_processing_stg_orders(config: PipelineConfig, _1_staging_to_bigquery: Di
     
     Creates stg_orders table using the separate SQL file with:
     - Deduplication logic for order_id
-    - All original columns from supabase_olist_orders_dataset
+    - All original columns from orders
     - Data quality validation and cleansing
     
     Args:
@@ -1002,7 +972,7 @@ def _2b_processing_stg_order_items(config: PipelineConfig, _1_staging_to_bigquer
     
     Creates stg_order_items table using the separate SQL file with:
     - Deduplication logic for order_id and order_item_id
-    - All original columns from supabase_olist_order_items_dataset
+    - All original columns from order_items
     - Data quality validation and cleansing
     
     Args:
@@ -1124,7 +1094,7 @@ def _2c_processing_stg_products(config: PipelineConfig, _1_staging_to_bigquery: 
     
     Creates stg_products table using the separate SQL file with:
     - Deduplication logic for product_id
-    - All original columns from supabase_olist_products_dataset
+    - All original columns from products
     - Data quality validation and cleansing
     
     Args:
@@ -1401,7 +1371,7 @@ def _2e_processing_stg_order_payments(config: PipelineConfig, _1_staging_to_bigq
     Process and create staging table for order payments using dbt SQL file
 
     Creates stg_order_payments table using the separate SQL file with:
-    - All original columns from supabase_olist_payments_dataset
+    - All original columns from payments
     - Data quality validation and cleansing
     - Deduplication logic for order_id and payment_sequential
     
@@ -1542,7 +1512,7 @@ def _2f_processing_stg_sellers(config: PipelineConfig, _1_staging_to_bigquery: D
     Process and create staging table for sellers using dbt SQL file
     
     Creates stg_sellers table using the separate SQL file with:
-    - All original columns from supabase_olist_sellers_dataset
+    - All original columns from sellers
     - Data quality validation and cleansing
     - Deduplication logic for seller_id
     
@@ -1683,7 +1653,7 @@ def _2g_processing_stg_customers(config: PipelineConfig, _1_staging_to_bigquery:
     Process and create staging table for customers using dbt SQL file
     
     Creates stg_customers table using the separate SQL file with:
-    - All original columns from supabase_olist_customers_dataset
+    - All original columns from customers
     - Data quality validation and cleansing
     - Deduplication logic for customer_id
     
@@ -1824,7 +1794,7 @@ def _2h_processing_stg_geolocation(config: PipelineConfig, _1_staging_to_bigquer
     Process and create staging table for geolocations using dbt SQL file
 
     Creates stg_geolocation table using the separate SQL file with:
-    - All original columns from supabase_olist_geolocation_dataset
+    - All original columns from geolocation
     - Data quality validation and cleansing
     - Deduplication logic for geolocation_zip_code_prefix
     
@@ -1989,7 +1959,7 @@ def _2i_processing_stg_product_category_name_translation(config: PipelineConfig,
     
     Creates stg_product_category_name_translation table using the separate SQL file with:
     - Deduplication logic for product_category_name
-    - All original columns from supabase_olist_product_category_name_translation
+    - All original columns from product_category_name_translation
     - Data quality validation and cleansing
     
     Args:

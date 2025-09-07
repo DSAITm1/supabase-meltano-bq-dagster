@@ -177,11 +177,11 @@ with revenue_analytics_obt as (
         current_datetime() as last_updated_timestamp
         
     from {{ source('warehouse', 'fact_order_items')  }} f
-    inner join {{ source('warehouse', 'dim_dates')  }} d on f.order_date_sk = d.date_sk
-    inner join {{ source('warehouse', 'dim_customers')  }} c on f.customer_sk = c.customer_sk
-    inner join {{ source('warehouse', 'dim_products')  }} p on f.product_sk = p.product_sk
-    inner join {{ source('warehouse', 'dim_sellers')  }} s on f.seller_sk = s.seller_sk
-    inner join {{ source('warehouse', 'dim_payments')  }} pm on f.payment_sk = pm.payment_sk
+    inner join {{ source('warehouse', 'dim_date')  }} d on f.order_date_sk = d.date_sk
+    inner join {{ source('warehouse', 'dim_customer')  }} c on f.customer_sk = c.customer_sk
+    inner join {{ source('warehouse', 'dim_product')  }} p on f.product_sk = p.product_sk
+    inner join {{ source('warehouse', 'dim_seller')  }} s on f.seller_sk = s.seller_sk
+    inner join {{ source('warehouse', 'dim_payment')  }} pm on f.payment_sk = pm.payment_sk
     inner join {{ source('warehouse', 'dim_orders')  }} o on f.order_sk = o.order_sk
     left join {{ source('warehouse', 'dim_order_reviews')  }} r on f.review_sk = r.review_sk
 )

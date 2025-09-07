@@ -12,7 +12,7 @@ with geolocation_base as (
         geolocation_lng,
         geolocation_city,
         geolocation_state
-    from {{ source('staging', 'stg_geolocations') }}
+    from {{ source('staging', 'stg_geolocation') }}
     where geolocation_zip_code_prefix is not null
 ),
 

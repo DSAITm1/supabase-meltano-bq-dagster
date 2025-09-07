@@ -2,11 +2,11 @@ version: 2
 
 sources:
   - name: warehouse
-    description: "Warehouse models from olist_data_warehouse dataset"
+    description: "Warehouse models dataset"
     database: "{{ env_var('BQ_PROJECT_ID') }}"
-    schema: "olist_data_warehouse"
+    schema:  "{{ env_var('TARGET_BIGQUERY_DATASET', 'dbt_olist_dwh') }}"
     tables:
-      - name: dim_customers
+      - name: dim_customer
         description: "Warehouse customers data"
       - name: dim_orders
         description: "Warehouse orders data"
@@ -14,15 +14,15 @@ sources:
         description: "Warehouse order items data"
       - name: dim_order_reviews
         description: "Warehouse order reviews data"
-      - name: dim_payments
+      - name: dim_payment
         description: "Warehouse payments data"
-      - name: dim_products
+      - name: dim_product
         description: "Warehouse products data"
-      - name: dim_sellers
+      - name: dim_seller
         description: "Warehouse sellers data"
-      - name: dim_geolocations
+      - name: dim_geolocation
         description: "Warehouse geolocations data"
-      - name: dim_dates
+      - name: dim_date
         description: "Warehouse dates data"
       - name: fact_order_items
         description: "Warehouse fact order items data"

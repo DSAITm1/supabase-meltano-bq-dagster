@@ -7,16 +7,6 @@ environments:
 - name: prod
 plugins:
   extractors:
-  - name: tap-mysql
-    variant: transferwise
-    pip_url: 
-      git+https://github.com/transferwise/pipelinewise.git#subdirectory=singer-connectors/tap-mysql
-    config:
-      host: bec-db-rds.cvii44gkul2j.ap-southeast-1.rds.amazonaws.com
-      database: bec-db-rds
-      user: admin
-      password: $TAP_MYSQL_PASSWORD
-      port: 3306
   - name: tap-postgres
     variant: meltanolabs
     pip_url: meltanolabs-tap-postgres
@@ -30,60 +20,51 @@ plugins:
       password: $TAP_POSTGRES_PASSWORD
       max_record_count: 0
     select:
+    - public-olist_customers_dataset.*
     - public-olist_order_items_dataset.*
     - public-olist_order_payments_dataset.*
     - public-olist_order_reviews_dataset.*
     - public-olist_orders_dataset.*
     - public-olist_products_dataset.*
     - public-olist_sellers_dataset.*
-    - public-olist_customers_dataset.*
     - public-olist_geolocation_dataset.*
-    - public_product_category_name_translation.*
+    - public-product_category_name_translation.*
   loaders:
   - name: target-bigquery
     variant: z3z1ma
     pip_url: git+https://github.com/z3z1ma/target-bigquery.git
     config:
       batch_size: 1000
-      credentials_path: $GOOGLE_APPLICATION_CREDENTIALS_JSON
+      credentials_path: ./bigquery-credentials.json
+      project: $BQ_PROJECT_ID
       dataset: $TARGET_RAW_DATASET
+      location: $BQ_LOCATION
       denormalized: true
       flattening_enabled: true
       flattening_max_depth: 1
-      method: batch_job
-      project: $TARGET_STAGING_DATASET
-      overwrite: true
-  - name: target-bigquery-supabase
-    inherit_from: target-bigquery
-    config:
-      project: $BQ_PROJECT_ID
-      dataset: $TARGET_RAW_DATASET
-      credentials_path: $GOOGLE_APPLICATION_CREDENTIALS_JSON
+      method: streaming_insert
       overwrite: false
-      method: storage_write_api
-      denormalized: true
-      location: US
-      fail_fast: true
-      batch_size: 1000
+      add_record_metadata: false
+      table_suffix: ""
       stream_maps:
         public-olist_customers_dataset:
-          __alias__: supabase_olist_customers_dataset
+          __alias__: customers
         public-olist_geolocation_dataset:
-          __alias__: supabase_olist_geolocation_dataset
+          __alias__: geolocation
         public-olist_order_items_dataset:
-          __alias__: supabase_olist_order_items_dataset
+          __alias__: order_items
         public-olist_order_payments_dataset:
-          __alias__: supabase_olist_order_payments_dataset
+          __alias__: order_payments
         public-olist_order_reviews_dataset:
-          __alias__: supabase_olist_order_reviews_dataset
+          __alias__: order_reviews
         public-olist_orders_dataset:
-          __alias__: supabase_olist_orders_dataset
+          __alias__: orders
         public-olist_products_dataset:
-          __alias__: supabase_olist_products_dataset
+          __alias__: products
         public-olist_sellers_dataset:
-          __alias__: supabase_olist_sellers_dataset
+          __alias__: sellers
         public-product_category_name_translation:
-          __alias__: supabase_product_category_name_translation
+          __alias__: product_category_name_translation
 
 # Jobs configuration
   transformers:
@@ -94,12 +75,9 @@ plugins:
       project_dir: transform
       profiles_dir: transform/profiles
       target: prod
-      source_schema: olist_data_staging
-      target_schema: olist_data_warehouse
+      source_schema: $TARGET_STAGING_DATASET
+      target_schema: $TARGET_BIGQUERY_DATASET
 jobs:
-- name: rds-to-bigquery
-  tasks:
-  - tap-mysql target-bigquery
 - name: supabase-to-bigquery
   tasks:
   - tap-postgres target-bigquery-supabase
@@ -112,8 +90,6 @@ jobs:
 # Hooks for automated cleanup
 hooks:
   post-invoke:
-    tap-mysql:
-    - python meltano-post-hook.py
     tap-postgres:
     - python meltano-post-hook.py
     target-bigquery:
@@ -121,8 +97,6 @@ hooks:
     target-bigquery-supabase:
     - python meltano-post-hook.py
   post-run:
-    rds-to-bigquery:
-    - python meltano-post-hook.py
     supabase-to-bigquery:
     - python meltano-post-hook.py
 

@@ -2,7 +2,7 @@
 {{ config(materialized='table') }}
 
 with source as (
-    select * from {{ source('staging', 'supabase_olist_order_reviews_dataset') }}
+    select * from {{ source('raw', 'order_reviews') }}
 ),
 deduplicated as (
     select 

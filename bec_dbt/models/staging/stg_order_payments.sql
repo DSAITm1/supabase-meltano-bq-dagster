@@ -1,7 +1,7 @@
 {{ config(materialized='table') }}
 
 with source as (
-    select * from {{ source('staging', 'supabase_olist_order_payments_dataset') }}
+    select * from {{ source('raw', 'order_payments') }}
 ),
 deduplicated as (
     select 

@@ -1,35 +1,34 @@
 version: 2
 
 sources:
-  - name: staging
+  - name: raw
     description: "Raw dataset from Supabase containing raw olist e-commerce data"
     database: "{{ env_var('BQ_PROJECT_ID') }}"
-    schema: "{{ env_var('TARGET_RAW_DATASET', 'olist_data_raw') }}"
-    description: "Source data from Olist e-commerce platform"
+    schema: "{{ env_var('TARGET_RAW_DATASET', 'olist_raw') }}"
     tables:
-      - name: supabase_olist_customers_dataset
+      - name: customers
         description: "Customer information including location and unique identifiers"
         
-      - name: supabase_olist_geolocation_dataset
+      - name: geolocation
         description: "Geolocation data with latitude, longitude, and location details"
         
-      - name: supabase_olist_order_items_dataset
+      - name: order_items
         description: "Individual items within orders including product, seller, and pricing information"
         
-      - name: supabase_olist_order_payments_dataset
+      - name: order_payments
         description: "Payment information for orders including payment type and amounts"
         
-      - name: supabase_olist_order_reviews_dataset
+      - name: order_reviews
         description: "Customer reviews and ratings for orders"
         
-      - name: supabase_olist_orders_dataset
+      - name: orders
         description: "Order header information including status, timestamps, and customer references"
         
-      - name: supabase_olist_products_dataset
+      - name: products
         description: "Product catalog information including categories, dimensions, and weights"
         
-      - name: supabase_product_category_name_translation
+      - name: product_category_name_translation
         description: "Translation mapping for product category names"
         
-      - name: supabase_olist_sellers_dataset
+      - name: sellers
         description: "Seller information including location and unique identifiers"
