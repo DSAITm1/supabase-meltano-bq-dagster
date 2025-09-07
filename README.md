@@ -147,33 +147,64 @@ meltano --version # Should show 3.7.8+
 dbt --version     # Should show 1.8.8+
 ```
 
-### 2. Configure Environment Variables
-```bash
-# Copy template and edit with your credentials
-cp .env.example .env
-nano .env  # Add your Supabase, BigQuery, and email credentials
-```
 
-**Required Environment Variables:**
-```bash
-# Supabase Configuration
-SUPABASE_HOST=your-supabase-host
-SUPABASE_USERNAME=your-username
-SUPABASE_PASSWORD=your-password
-SUPABASE_DATABASE=your-database
+### 2. ENV file
 
+### Environment Variables (.env)
+```bash
 # BigQuery Configuration
 BQ_PROJECT_ID=your-gcp-project-id
-TARGET_RAW_DATASET=olist_data_raw
-TARGET_STAGING_DATASET=olist_data_staging
-TARGET_WAREHOUSE_DATASET=olist_data_warehouse
-TARGET_ANALYTICAL_DATASET=olist_data_analytics
-GOOGLE_APPLICATION_CREDENTIALS_JSON='{"type": "service_account", ...}'
+BQ_LOCATION=your-bigquery-location
 
-# Email Notifications (optional)
-EMAIL_FROM=your-email@gmail.com
-EMAIL_PASSWORD=your-app-password
-EMAIL_TO=notifications@company.com
+# BigQuery Dataset Names
+TARGET_RAW_DATASET=your_raw_dataset
+TARGET_STAGING_DATASET=your_staging_dataset
+TARGET_BIGQUERY_DATASET=your_warehouse_dataset
+TARGET_ANALYTICAL_DATASET=your_analytics_dataset
+
+# dbt Configuration
+DBT_PROFILES_DIR=./bec_dbt
+
+# Google Cloud Authentication - Service Account JSON
+GOOGLE_APPLICATION_CREDENTIALS_PATH=service-account-key.json
+GOOGLE_APPLICATION_CREDENTIALS_JSON='{
+  "type": "service_account",
+  "project_id": "your-project-id",
+  "private_key_id": "your-private-key-id",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nyour-private-key\n-----END PRIVATE KEY-----\n",
+  "client_email": "your-service-account@your-project.iam.gserviceaccount.com",
+  "client_id": "your-client-id",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/your-service-account",
+  "universe_domain": "googleapis.com"
+}'
+
+# Supabase Database Configuration (for pandas.to_sql method)
+DB_HOST=db.your-project.supabase.co
+DB_PORT=5432
+DB_NAME=postgres
+DB_USER=postgres.your-project
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_KEY=your-supabase-anon-key
+TAP_POSTGRES_PASSWORD=your-postgres-password
+
+# Supabase connection method selector (for Dagster pipeline)
+# Options: aws-1-region.pooler.supabase.com (pooler) or db.your-project.supabase.co (direct)
+SUPABASE_HOST=aws-1-region.pooler.supabase.com
+
+# Email notification configuration for Dagster pipeline summaries
+# Required for _5_dbt_summaries function to send notifications
+
+# SMTP Configuration
+SMTP_SERVER=smtp.sendgrid.net
+SMTP_PORT=587
+
+# Email credentials (use app password for Gmail)
+SENDER_EMAIL=your-email@gmail.com
+SENDGRID_API_KEY=your-sendgrid-api-key
+RECIPIENT_EMAILS=email1@company.com,email2@company.com,email3@company.com
 ```
 
 ### 3. Run Complete Pipeline
@@ -285,33 +316,6 @@ MOCK_EXECUTION=true python dagster_pipeline.py
 ./start_dagster.sh  # Then click "Materialize All" in web UI
 ```
 
-## ⚙️ Configuration
-
-### Environment Variables (.env)
-```bash
-# Supabase PostgreSQL Configuration
-SUPABASE_HOST=your-supabase-host.supabase.co
-SUPABASE_USERNAME=your_username
-SUPABASE_PASSWORD=your_password
-SUPABASE_DATABASE=postgres
-
-# Google BigQuery Configuration
-BQ_PROJECT_ID=your-gcp-project-id
-TARGET_RAW_DATASET=olist_data_raw
-TARGET_STAGING_DATASET=olist_data_staging  
-TARGET_WAREHOUSE_DATASET=olist_data_warehouse
-TARGET_ANALYTICAL_DATASET=olist_data_analytics
-GOOGLE_APPLICATION_CREDENTIALS_JSON='{"type": "service_account", ...}'
-
-# Email Notifications (optional)
-EMAIL_FROM=your-notifications@gmail.com
-EMAIL_PASSWORD=your-gmail-app-password
-EMAIL_TO=team@company.com
-
-# Pipeline Configuration
-MOCK_EXECUTION=false                    # Set to true for testing without real data
-```
-
 ### dbt Profiles Configuration
 The pipeline uses multiple dbt targets for different datasets:
 ```yaml
@@ -416,10 +420,9 @@ All models include comprehensive business metrics, KPIs, and are optimized for v
 
 1. **Environment Setup**: Ensure Python 3.11 conda environment: `conda activate bec`
 2. **Install Dependencies**: `conda env create -f requirements-bec.yaml`
-3. **Configure Environment**: Copy `.env.example` to `.env` and configure
-4. **Test Pipeline**: Run with `MOCK_EXECUTION=true` for safe testing
-5. **Test Components**: Verify Meltano, dbt, and Dagster integration
-6. **Update Documentation**: Update README for any new features or changes
+3. **Test Pipeline**: Run with `MOCK_EXECUTION=true` for safe testing
+4. **Test Components**: Verify Meltano, dbt, and Dagster integration
+5. **Update Documentation**: Update README for any new features or changes
 
 ### Development Workflow
 ```bash
