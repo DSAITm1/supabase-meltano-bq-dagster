@@ -156,7 +156,12 @@ from dagster import (
     MetadataValue,
     Config,
     get_dagster_logger,
-    Definitions
+    Definitions,
+    ScheduleDefinition,
+    DefaultScheduleStatus,
+    schedule,
+    AssetSelection,
+    define_asset_job
 )
 
 
@@ -3375,7 +3380,108 @@ def _4g_processing_seller_analytics_obt(config: PipelineConfig, _3i_processing_f
             "failure_type": "exception_error"
         }
 
- 
+@asset(group_name="Analytics", deps=[
+    _3a_processing_dim_orders,
+    _3i_processing_fact_order_items,
+    _3b_processing_dim_product,
+    _3f_processing_dim_customer,
+    _3e_processing_dim_seller,
+    _3g_processing_dim_geolocation
+])
+def _4h_processing_operation_analytics_obt(
+    config: PipelineConfig, 
+    _3a_processing_dim_orders: Dict[str, Any],
+    _3i_processing_fact_order_items: Dict[str, Any],
+    _3b_processing_dim_product: Dict[str, Any],
+    _3f_processing_dim_customer: Dict[str, Any],
+    _3e_processing_dim_seller: Dict[str, Any],
+    _3g_processing_dim_geolocation: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    Process operation analytics OBT (One Big Table) using dbt analytic model
+    
+    Creates operation_analytics_obt table using analytic/operation_analytics_obt.sql
+    This creates comprehensive operation analytics aggregations
+    
+    Args:
+        _3i_processing_fact_order_items: Result from fact order items processing
+        _4a_processing_revenue_analytics_obt: Result from revenue analytics processing (dependency)
+        
+    Returns:
+        Operation analytics OBT processing results
+    """
+    logger = get_dagster_logger()
+    logger.info("� Processing analytics OBT: operation_analytics_obt using dbt analytic model")
+    logger.info("📊 Creating operation analytics aggregations for business intelligence")
+    
+    dbt_dir = str(get_dbt_dir())
+    
+    try:
+        env_vars = os.environ.copy()
+        env_vars.update({
+            'TARGET_ANALYTICAL_DATASET': config.analytical_bigquery_dataset,  
+            'TARGET_BIGQUERY_DATASET': config.bigquery_dataset,  
+            'TARGET_STAGING_DATASET': config.staging_bigquery_dataset,
+            'TARGET_RAW_DATASET': config.raw_bigquery_dataset,
+            'BQ_PROJECT_ID': get_bq_project_id(),
+        })
+        
+        logger.info("🔄 Running dbt analytic model: operation_analytics_obt...")
+        
+        dbt_result = subprocess.run([
+            'bash', '-c', 
+            f'eval "$(conda shell.bash hook)" && conda activate bec && dbt run --select operation_analytics_obt --target analytics --profiles-dir "{dbt_dir}" --no-version-check'
+        ],
+            capture_output=True,
+            text=True,
+            cwd=dbt_dir,
+            timeout=600,
+            env=env_vars
+        )
+        
+        if dbt_result.returncode != 0:
+            logger.error(f"❌ dbt operation_analytics_obt failed: {dbt_result.stderr}")
+            # Return failure status instead of raising exception
+            return {
+                "status": "failed",
+                "table_name": "operation_analytics_obt",
+                "analytic_model": "operation_analytics_obt",
+                "table_type": "analytics_obt",
+                "target_dataset": config.analytical_bigquery_dataset,
+                "source_dataset": config.bigquery_dataset,
+                "dbt_model_path": "analytic/operation_analytics_obt.sql",
+                "error": f"dbt operation_analytics_obt failed: {dbt_result.stderr}",
+                "failure_type": "dbt_execution_error"
+            }
+        
+        logger.info("✅ operation_analytics_obt analytic model completed successfully")
+        
+        return {
+            "status": "success",
+            "table_name": "operation_analytics_obt",
+            "analytic_model": "operation_analytics_obt",
+            "table_type": "analytics_obt",
+            "target_dataset": config.analytical_bigquery_dataset,
+            "source_dataset": config.bigquery_dataset,
+            "dbt_model_path": "analytic/operation_analytics_obt.sql"
+        }
+        
+    except Exception as e:
+        error_msg = f"operation_analytics_obt analytic processing failed: {str(e)}"
+        logger.error(f"❌ {error_msg}")
+        # Return failure status instead of raising exception
+        return {
+            "status": "failed",
+            "table_name": "operation_analytics_obt",
+            "analytic_model": "operation_analytics_obt",
+            "table_type": "analytics_obt",
+            "target_dataset": config.analytical_bigquery_dataset,
+            "source_dataset": config.bigquery_dataset,
+            "dbt_model_path": "analytic/operation_analytics_obt.sql",
+            "error": error_msg,
+            "failure_type": "exception_error"
+        }
+
 
 @asset(group_name="Summary", deps=[
     _1_staging_to_bigquery,
@@ -3387,7 +3493,7 @@ def _4g_processing_seller_analytics_obt(config: PipelineConfig, _3i_processing_f
     _3g_processing_dim_geolocation, _3h_processing_dim_date, _3i_processing_fact_order_items,
     _4a_processing_revenue_analytics_obt, _4b_processing_orders_analytics_obt, _4c_processing_delivery_analytics_obt,
     _4d_processing_customer_analytics_obt, _4e_processing_geographic_analytics_obt, _4f_processing_payment_analytics_obt,
-    _4g_processing_seller_analytics_obt
+    _4g_processing_seller_analytics_obt, _4h_processing_operation_analytics_obt
 ])
 def _5_dbt_summaries(
     config: PipelineConfig,
@@ -3420,7 +3526,8 @@ def _5_dbt_summaries(
     _4d_processing_customer_analytics_obt: Dict[str, Any],
     _4e_processing_geographic_analytics_obt: Dict[str, Any],
     _4f_processing_payment_analytics_obt: Dict[str, Any],
-    _4g_processing_seller_analytics_obt: Dict[str, Any]
+    _4g_processing_seller_analytics_obt: Dict[str, Any],
+    _4h_processing_operation_analytics_obt: Dict[str, Any]
 ) -> Dict[str, Any]:
     """
     Complete Pipeline Summary with Function Status Monitoring
@@ -3531,7 +3638,8 @@ def _5_dbt_summaries(
         "_4d_processing_customer_analytics_obt": _4d_processing_customer_analytics_obt,
         "_4e_processing_geographic_analytics_obt": _4e_processing_geographic_analytics_obt,
         "_4f_processing_payment_analytics_obt": _4f_processing_payment_analytics_obt,
-        "_4g_processing_seller_analytics_obt": _4g_processing_seller_analytics_obt
+        "_4g_processing_seller_analytics_obt": _4g_processing_seller_analytics_obt,
+        "_4h_processing_operation_analytics_obt": _4h_processing_operation_analytics_obt
     }
     
     # Analyze function results
@@ -4221,16 +4329,62 @@ def _5_dbt_summaries_independent(config: PipelineConfig) -> Dict[str, Any]:
 
 
 
-@job(name="all_assets")
-def all_assets_pipeline():
+# Define asset-based job that will execute all assets in dependency order
+all_assets_pipeline = define_asset_job(
+    name="all_assets_pipeline",
+    selection=AssetSelection.all(),
+    description="Complete ETL pipeline: Staging → Dimensions → Analysis → Summary. "
+                "Orchestrates 26 assets across 5 phases with automatic dependency resolution."
+)
+
+
+# Create schedule for daily execution at 9:00 AM Singapore time
+# Singapore is UTC+8, so 9:00 AM Singapore = 1:00 AM UTC
+@schedule(
+    job=all_assets_pipeline,
+    cron_schedule="0 1 * * *",  # 1:00 AM UTC = 9:00 AM Singapore (UTC+8)
+    default_status=DefaultScheduleStatus.RUNNING,
+    name="daily_pipeline_singapore_9am"
+)
+def singapore_schedule(context):
     """
-    Complete ETL pipeline: Staging → Dimensions → Analysis → Summary
+    Daily execution of the complete Supabase-BigQuery pipeline at 9:00 AM Singapore time
     
-    This job orchestrates the entire data pipeline with proper dependencies
-    and comprehensive monitoring of each stage.
+    Schedule runs at 1:00 AM UTC which corresponds to 9:00 AM in Singapore (UTC+8)
     """
-    # The asset dependencies are automatically handled by Dagster
-    _5_dbt_summaries()
+    return {
+        "ops": {
+            "_5_dbt_summaries": {
+                "config": {
+                    "execution_timezone": "Asia/Singapore",
+                    "scheduled_time": "09:00 Singapore Time"
+                }
+            }
+        },
+        "tags": {
+            "schedule": "daily_9am_singapore",
+            "timezone": "Asia/Singapore", 
+            "utc_time": "01:00",
+            "singapore_time": "09:00"
+        }
+    }
+
+# Additional schedule options
+@schedule(
+    job=all_assets_pipeline,
+    cron_schedule="0 1 * * 1",  # 1:00 AM UTC Monday = 9:00 AM Singapore Monday
+    default_status=DefaultScheduleStatus.STOPPED,  # Stopped by default
+    name="weekly_pipeline_singapore_monday"
+)
+def singapore_weekly_schedule(context):
+    """Weekly execution every Monday at 9:00 AM Singapore time"""
+    return {
+        "tags": {
+            "schedule": "weekly_monday_singapore",
+            "timezone": "Asia/Singapore",
+            "frequency": "weekly"
+        }
+    }
 
 
 # Define the Dagster definitions
@@ -4267,12 +4421,13 @@ defs = Definitions(
         _4e_processing_geographic_analytics_obt,
         _4f_processing_payment_analytics_obt,        
         _4g_processing_seller_analytics_obt,
+        _4h_processing_operation_analytics_obt,
         
         # Phase 5: Summary and send emails
         _5_dbt_summaries
-
-    ]
-    #,jobs=[all_assets] #defined job for now just commented
+    ],
+    jobs=[all_assets_pipeline],
+    schedules=[singapore_schedule, singapore_weekly_schedule]
 )
 
 

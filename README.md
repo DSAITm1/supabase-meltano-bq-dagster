@@ -518,6 +518,295 @@ Deploy your production-ready Supabase-BigQuery pipeline to Google Cloud Platform
 - ✅ **Custom Setup**: Specialized configurations
 - ✅ **Legacy Integration**: Existing infrastructure
 
+### 🚀 Docker to Cloud Run Deployment (project-olist-470307)
+
+Complete step-by-step guide for deploying your containerized Supabase-BigQuery pipeline to Google Cloud Run in **asia-southeast1** region.
+
+#### **📋 Project Configuration**
+- **GCP Project**: `project-olist-470307`
+- **Region**: `asia-southeast1`
+- **BigQuery Location**: `asia-southeast1`
+- **Datasets**: `olist_raw`, `dbt_olist_stg`, `dbt_olist_dwh`, `dbt_olist_analytics`
+
+#### **🔧 Prerequisites Setup**
+
+1. **Install Google Cloud CLI**:
+```bash
+# macOS
+brew install --cask google-cloud-sdk
+
+# Or download from: https://cloud.google.com/sdk/docs/install
+```
+
+2. **Authenticate with GCP**:
+```bash
+# Login to your Google account
+gcloud auth login
+
+# Set your project
+gcloud config set project project-olist-470307
+
+# Configure Docker to use gcloud as credential helper
+gcloud auth configure-docker
+```
+
+3. **Verify Setup**:
+```bash
+# Check current project
+gcloud config get-value project
+# Should output: project-olist-470307
+
+# Check authenticated user
+gcloud auth list
+```
+
+#### **⚙️ Step 1: Enable Required GCP APIs**
+
+```bash
+# Enable all necessary APIs for the pipeline
+gcloud services enable \
+    cloudbuild.googleapis.com \
+    run.googleapis.com \
+    bigquery.googleapis.com \
+    secretmanager.googleapis.com \
+    scheduler.googleapis.com \
+    container.googleapis.com
+```
+
+#### **📊 Step 2: Create BigQuery Datasets**
+
+```bash
+# Create all required datasets in asia-southeast1
+bq mk --project_id=project-olist-470307 --location=asia-southeast1 olist_raw
+bq mk --project_id=project-olist-470307 --location=asia-southeast1 dbt_olist_stg
+bq mk --project_id=project-olist-470307 --location=asia-southeast1 dbt_olist_dwh
+bq mk --project_id=project-olist-470307 --location=asia-southeast1 dbt_olist_analytics
+
+# Verify datasets creation
+bq ls --project_id=project-olist-470307
+```
+
+#### **🔑 Step 3: Create Service Account**
+
+```bash
+# Create service account for the pipeline
+gcloud iam service-accounts create pipeline-service \
+    --display-name="Supabase Pipeline Service Account" \
+    --project=project-olist-470307
+
+# Grant BigQuery permissions
+gcloud projects add-iam-policy-binding project-olist-470307 \
+    --member="serviceAccount:pipeline-service@project-olist-470307.iam.gserviceaccount.com" \
+    --role="roles/bigquery.admin"
+
+# Grant Cloud Run permissions
+gcloud projects add-iam-policy-binding project-olist-470307 \
+    --member="serviceAccount:pipeline-service@project-olist-470307.iam.gserviceaccount.com" \
+    --role="roles/run.invoker"
+```
+
+#### **🔒 Step 4: Store Secrets in Secret Manager**
+
+```bash
+# Store Supabase credentials
+echo 'https://royhmnxmsfichopabwsi.supabase.co' | \
+    gcloud secrets create supabase-url --data-file=-
+
+echo 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJveWhtbnhtc2ZpY2hvcGFid3NpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzMTIxMjEsImV4cCI6MjA3MTg4ODEyMX0.kv1CVbxkESwRWCqG0GWu2uUgvsTw7KXzqopCRkAdzqs' | \
+    gcloud secrets create supabase-anon-key --data-file=-
+
+echo 'ci2rqxATqWD2AhMh' | \
+    gcloud secrets create supabase-db-password --data-file=-
+
+# Store SendGrid API key
+echo 'YOUR_SENDGRID_API_KEY_HERE' | \
+    gcloud secrets create sendgrid-api-key --data-file=-
+
+# Upload service account JSON key
+gcloud secrets create gcp-service-account-key \
+    --data-file=bec_dbt/service-account-key.json
+
+# Verify secrets creation
+gcloud secrets list
+```
+
+#### **🐳 Step 5: Build and Push Docker Images**
+
+```bash
+# Build main pipeline container
+docker build -t gcr.io/project-olist-470307/supabase-bq-pipeline:latest .
+
+# Build Meltano ELT container
+docker build -f Dockerfile.meltano \
+    -t gcr.io/project-olist-470307/meltano-elt:latest .
+
+# Build dbt transformations container
+docker build -f Dockerfile.dbt \
+    -t gcr.io/project-olist-470307/dbt-transforms:latest .
+
+# Push all images to Container Registry
+docker push gcr.io/project-olist-470307/supabase-bq-pipeline:latest
+docker push gcr.io/project-olist-470307/meltano-elt:latest
+docker push gcr.io/project-olist-470307/dbt-transforms:latest
+
+# Verify images in Container Registry
+gcloud container images list --repository=gcr.io/project-olist-470307
+```
+
+#### **☁️ Step 6: Deploy to Cloud Run**
+
+```bash
+# Deploy main pipeline service to Cloud Run
+gcloud run deploy supabase-bq-pipeline \
+    --image gcr.io/project-olist-470307/supabase-bq-pipeline:latest \
+    --platform managed \
+    --region asia-southeast1 \
+    --allow-unauthenticated \
+    --memory 2Gi \
+    --cpu 1 \
+    --timeout 3600 \
+    --service-account pipeline-service@project-olist-470307.iam.gserviceaccount.com \
+    --set-env-vars "BQ_PROJECT_ID=project-olist-470307,BQ_LOCATION=asia-southeast1,TARGET_RAW_DATASET=olist_raw,TARGET_STAGING_DATASET=dbt_olist_stg,TARGET_BIGQUERY_DATASET=dbt_olist_dwh,TARGET_ANALYTICAL_DATASET=dbt_olist_analytics,DBT_TARGET=production,MOCK_EXECUTION=false" \
+    --set-secrets "SUPABASE_URL=supabase-url:latest,SUPABASE_KEY=supabase-anon-key:latest,TAP_POSTGRES_PASSWORD=supabase-db-password:latest,SENDGRID_API_KEY=sendgrid-api-key:latest,GOOGLE_APPLICATION_CREDENTIALS_JSON=gcp-service-account-key:latest" \
+    --port 3000
+
+# Get the service URL
+SERVICE_URL=$(gcloud run services describe supabase-bq-pipeline \
+    --region=asia-southeast1 --format='value(status.url)')
+
+echo "🎉 Pipeline deployed successfully!"
+echo "Dagster UI: $SERVICE_URL"
+echo "Health Check: $SERVICE_URL/health"
+```
+
+#### **⏰ Step 7: Set Up Automated Scheduling**
+
+```bash
+# Create Cloud Scheduler job for daily execution
+gcloud scheduler jobs create http pipeline-daily \
+    --schedule="0 2 * * *" \
+    --uri="$SERVICE_URL/run-pipeline" \
+    --http-method=POST \
+    --time-zone="Asia/Singapore" \
+    --location=asia-southeast1 \
+    --description="Daily Supabase to BigQuery pipeline execution" \
+    --max-retry-attempts=3 \
+    --min-backoff-duration=5m
+
+# Verify scheduler job
+gcloud scheduler jobs list --location=asia-southeast1
+```
+
+#### **🔍 Step 8: Monitoring and Verification**
+
+```bash
+# View Cloud Run service logs
+gcloud run services logs read supabase-bq-pipeline --region=asia-southeast1
+
+# Check BigQuery datasets and tables
+bq ls project-olist-470307:olist_raw
+bq ls project-olist-470307:dbt_olist_stg
+bq ls project-olist-470307:dbt_olist_dwh
+bq ls project-olist-470307:dbt_olist_analytics
+
+# Test pipeline manually
+curl -X POST "$SERVICE_URL/run-pipeline"
+
+# Monitor pipeline execution
+gcloud run services logs read supabase-bq-pipeline --region=asia-southeast1 --limit=50
+```
+
+#### **🛠️ Management Commands**
+
+```bash
+# Update service with new image
+gcloud run deploy supabase-bq-pipeline \
+    --image gcr.io/project-olist-470307/supabase-bq-pipeline:latest \
+    --region asia-southeast1
+
+# Scale service (set minimum instances)
+gcloud run services update supabase-bq-pipeline \
+    --min-instances=0 \
+    --max-instances=10 \
+    --region=asia-southeast1
+
+# View service details
+gcloud run services describe supabase-bq-pipeline --region=asia-southeast1
+
+# Delete service (if needed)
+gcloud run services delete supabase-bq-pipeline --region=asia-southeast1
+```
+
+#### **💰 Cost Optimization**
+
+```bash
+# Set CPU allocation to request-only (more cost effective)
+gcloud run services update supabase-bq-pipeline \
+    --cpu-allocation=request-only \
+    --region=asia-southeast1
+
+# Configure concurrency for better resource utilization
+gcloud run services update supabase-bq-pipeline \
+    --concurrency=80 \
+    --region=asia-southeast1
+```
+
+#### **🚨 Troubleshooting**
+
+```bash
+# Check service status
+gcloud run services list --region=asia-southeast1
+
+# View detailed error logs
+gcloud run services logs read supabase-bq-pipeline \
+    --region=asia-southeast1 --limit=100
+
+# Test container locally before deployment
+docker run -p 3000:3000 \
+    gcr.io/project-olist-470307/supabase-bq-pipeline:latest
+
+# Check secret access
+gcloud secrets versions access latest --secret=supabase-url
+```
+
+#### **⚡ Quick Deployment Script**
+
+For automated deployment, use the provided script:
+
+```bash
+# One-command deployment
+./deploy-gcp.sh production cloud-run
+
+# View deployment guide
+./cloud-run-deployment-guide.sh
+```
+
+#### **📈 Production Monitoring**
+
+After deployment, your pipeline provides:
+
+- **📊 Dagster UI**: Real-time pipeline monitoring at `$SERVICE_URL`
+- **📧 Email Alerts**: Automatic notifications to your team
+- **📝 Structured Logs**: Searchable logs in Google Cloud Logging
+- **⏰ Scheduled Runs**: Daily execution at 2 AM Singapore time
+- **💾 Data Lineage**: Complete dbt documentation and lineage
+- **🔍 Health Checks**: Automated service health monitoring
+
+#### **🎯 Expected Results**
+
+Once deployed successfully, you'll have:
+
+1. **Serverless Pipeline**: Auto-scaling Cloud Run service
+2. **Data Flow**: Supabase → BigQuery (4-layer architecture)
+3. **Analytics Models**: 7 pre-built dbt models ready for BI
+4. **Automation**: Daily scheduled execution
+5. **Monitoring**: Complete observability and alerting
+6. **Cost Efficiency**: Pay-per-use serverless pricing
+
+**Service URL Format**: `https://supabase-bq-pipeline-[hash]-as.a.run.app`
+
+Your production-ready Supabase-BigQuery pipeline is now live on Google Cloud! 🚀
+
 ### 🚀 Quick GCP Deployment
 
 #### Prerequisites
