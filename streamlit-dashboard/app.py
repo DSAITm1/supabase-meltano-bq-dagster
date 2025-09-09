@@ -542,7 +542,21 @@ def customer_segmentation_page(customer_df, filters):
             # Sort by total revenue
             segment_stats = segment_stats.sort_values('Total Revenue', ascending=False)
 
-            st.dataframe(segment_stats, width="stretch")
+            # Format the data for better display and map segment names to readable labels
+            segment_stats_display = segment_stats.copy()
+            
+            # Map the index (customer_segment values) to readable labels
+            # Use a list comprehension to handle missing mappings
+            segment_stats_display.index = [SEGMENT_LABELS.get(idx, idx) for idx in segment_stats_display.index]
+            
+            segment_stats_display['Customers'] = segment_stats_display['Customers'].apply(lambda x: format_number(x))
+            segment_stats_display['Avg Spent'] = segment_stats_display['Avg Spent'].apply(lambda x: format_currency(x, 2))
+            segment_stats_display['Total Revenue'] = segment_stats_display['Total Revenue'].apply(lambda x: format_currency(x, 2))
+            segment_stats_display['Avg Orders'] = segment_stats_display['Avg Orders'].apply(lambda x: f"{x:.2f}")
+            segment_stats_display['Avg Rating'] = segment_stats_display['Avg Rating'].apply(lambda x: f"{x:.2f}")
+            segment_stats_display['% of Base'] = segment_stats_display['% of Base'].apply(lambda x: f"{x:.2f}%")
+
+            st.dataframe(segment_stats_display, width="stretch")
 
     with col2:
         st.subheader("🥧 Segment Pie Chart")
@@ -681,8 +695,17 @@ def geographic_distribution_page(customer_df, geographic_df, filters):
         # Sort by total revenue
         state_stats = state_stats.sort_values('Total Revenue', ascending=False)
 
+        # Format the data for better display
+        state_stats_display = state_stats.head(10).copy()
+        state_stats_display['Total Customers'] = state_stats_display['Total Customers'].apply(lambda x: format_number(x))
+        state_stats_display['Total Orders'] = state_stats_display['Total Orders'].apply(lambda x: format_number(x))
+        state_stats_display['Total Revenue'] = state_stats_display['Total Revenue'].apply(lambda x: format_currency(x, 0))
+        state_stats_display['Avg Customer Value'] = state_stats_display['Avg Customer Value'].apply(lambda x: format_currency(x, 2))
+        state_stats_display['Avg Rating'] = state_stats_display['Avg Rating'].apply(lambda x: f"{x:.2f}")
+        state_stats_display['Market Share %'] = state_stats_display['Market Share %'].apply(lambda x: f"{x:.2f}%")
+
         # Display top 10 states
-        st.dataframe(state_stats.head(10), width="stretch")
+        st.dataframe(state_stats_display, width="stretch")
 
     st.markdown("---")
 
@@ -741,7 +764,13 @@ def geographic_distribution_page(customer_df, geographic_df, filters):
             region_stats.columns = ['Customers', 'Total Revenue', 'Avg Customer Value']
             region_stats = region_stats.sort_values('Total Revenue', ascending=False)
 
-            st.dataframe(region_stats, width="stretch")
+            # Format the data for better display
+            region_stats_display = region_stats.copy()
+            region_stats_display['Customers'] = region_stats_display['Customers'].apply(lambda x: format_number(x))
+            region_stats_display['Total Revenue'] = region_stats_display['Total Revenue'].apply(lambda x: format_currency(x, 0))
+            region_stats_display['Avg Customer Value'] = region_stats_display['Avg Customer Value'].apply(lambda x: format_currency(x, 2))
+
+            st.dataframe(region_stats_display, width="stretch")
 
     with col2:
         st.subheader("🎯 Market Tier Analysis")
@@ -769,7 +798,12 @@ def geographic_distribution_page(customer_df, geographic_df, filters):
         city_revenue.columns = ['City', 'State', 'Customers', 'Total Revenue']
         city_revenue = city_revenue.sort_values('Total Revenue', ascending=False).head(20)
 
-        st.dataframe(city_revenue, width="stretch")
+        # Format the data for better display
+        city_revenue_display = city_revenue.copy()
+        city_revenue_display['Customers'] = city_revenue_display['Customers'].apply(lambda x: format_number(x))
+        city_revenue_display['Total Revenue'] = city_revenue_display['Total Revenue'].apply(lambda x: format_currency(x, 0))
+
+        st.dataframe(city_revenue_display, width="stretch")
 
 def purchase_behavior_page(customer_df, filters):
     """Purchase Behavior Analysis Page"""
@@ -796,8 +830,14 @@ def purchase_behavior_page(customer_df, filters):
             total_unique_customers = filtered_df['customer_unique_id'].nunique() if 'customer_unique_id' in filtered_df.columns else len(filtered_df)
             frequency_stats['% of Base'] = (frequency_stats['Customers'] / total_unique_customers * 100).round(2)
 
+            # Format the data for better display
+            frequency_stats_display = frequency_stats.head(10).copy()
+            frequency_stats_display['Orders'] = frequency_stats_display['Orders'].apply(lambda x: format_number(x))
+            frequency_stats_display['Customers'] = frequency_stats_display['Customers'].apply(lambda x: format_number(x))
+            frequency_stats_display['% of Base'] = frequency_stats_display['% of Base'].apply(lambda x: f"{x:.2f}%")
+
             # Show top 10 most common order counts
-            st.dataframe(frequency_stats.head(10), width="stretch")
+            st.dataframe(frequency_stats_display, width="stretch")
 
     with col2:
         st.subheader("📈 Order Distribution")
