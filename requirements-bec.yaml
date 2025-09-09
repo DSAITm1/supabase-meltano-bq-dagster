@@ -36,6 +36,12 @@ dependencies:
       - PyMySQL>=1.1.0,<2.0.0
       - SQLAlchemy>=2.0.40,<3.0.0
       - cryptography>=3.4.0
+      - psycopg2-binary>=2.9.0
+      
+      # ===========================================
+      # COMMUNICATION & NOTIFICATIONS
+      # ===========================================
+      - sendgrid>=6.10.0
       
       # ===========================================
       # GOOGLE CLOUD SERVICES

@@ -3,15 +3,12 @@
 
 FROM python:3.11-slim as builder
 
-# Set environment variables
+# Set environment variables for build
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
-ENV PIP_NO_CACHE_DIR=1
-ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
-    build-essential \
     curl \
     git \
     && rm -rf /var/lib/apt/lists/*
@@ -70,9 +67,9 @@ USER appuser
 # Expose ports for Dagster web server
 EXPOSE 3000
 
-# Health check
+# Health check for web server
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:3000/server_info || exit 1
 
-# Default command (can be overridden)
-CMD ["python", "bec-dagster/dagster_pipeline.py"]
+# Default command - start the Dagster web server
+CMD ["python", "start_server.py"]
