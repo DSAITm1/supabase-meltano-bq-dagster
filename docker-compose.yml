@@ -102,6 +102,60 @@ services:
     depends_on:
       - meltano
 
+  # Streamlit Analytics Dashboard
+  streamlit-dashboard:
+    build:
+      context: ./streamlit-dashboard
+      dockerfile: Dockerfile
+    container_name: streamlit-analytics-dashboard
+    environment:
+      # BigQuery Configuration (inherit from main project)
+      - BQ_PROJECT_ID=${BQ_PROJECT_ID}
+      - BQ_RAW_DATASET=${BQ_RAW_DATASET}
+      - BQ_STAGING_DATASET=${BQ_STAGING_DATASET}
+      - BQ_WAREHOUSE_DATASET=${BQ_WAREHOUSE_DATASET}
+      - BQ_ANALYTICS_DATASET=${BQ_ANALYTICS_DATASET}
+      
+      # Google Cloud Configuration
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/service-account-key.json
+      - GOOGLE_CLOUD_PROJECT=${BQ_PROJECT_ID}
+      
+      # Streamlit Configuration
+      - STREAMLIT_SERVER_PORT=8501
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+      - STREAMLIT_SERVER_HEADLESS=true
+      - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+      
+    volumes:
+      # Share the same BigQuery credentials as other services
+      - ./bec_dbt/service-account-key.json:/app/credentials/service-account-key.json:ro
+      # Share logs directory
+      - ./logs:/app/logs
+      # Development mode: mount source for live reload
+      - ./streamlit-dashboard/app.py:/app/app.py:ro
+      
+    ports:
+      - "8501:8501"
+      
+    networks:
+      - pipeline-network
+      
+    restart: unless-stopped
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+      
+    depends_on:
+      - dbt  # Start after data transformations are complete
+      
+    labels:
+      - "com.docker.compose.service=streamlit-dashboard"
+      - "description=Customer Analytics Dashboard"
+
 networks:
   pipeline-network:
     driver: bridge
