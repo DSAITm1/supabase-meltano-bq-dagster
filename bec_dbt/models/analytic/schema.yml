@@ -306,6 +306,83 @@ models:
               min_value: 0
               max_value: 365
 
+  - name: operation_analytics_obt
+    description: "Comprehensive operational analysis focused on delivery performance, logistics metrics, and operational efficiency"
+    columns:
+      - name: order_id
+        description: "Order identifier"
+        tests:
+          - not_null
+      
+      - name: order_item_id
+        description: "Order item identifier"
+        tests:
+          - not_null
+      
+      - name: order_status
+        description: "Current order status"
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['delivered', 'shipped', 'processing', 'canceled', 'invoiced', 'created', 'approved', 'unavailable']
+      
+      - name: total_delivery_days
+        description: "Total days from purchase to delivery"
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 365
+      
+      - name: edd_delta_days
+        description: "Days difference between actual delivery and estimated delivery (positive = late, negative = early)"
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: -30
+              max_value: 100
+      
+      - name: late_to_edd_flag
+        description: "Flag indicating if order was delivered late compared to estimated delivery date"
+        tests:
+          - not_null
+          - accepted_values:
+              values: [0, 1]
+      
+      - name: performance_category
+        description: "Delivery performance classification"
+        tests:
+          - accepted_values:
+              values: ['very_early', 'early', 'on_time', 'late', 'very_late']
+      
+      - name: route_type
+        description: "Geographic shipping complexity"
+        tests:
+          - accepted_values:
+              values: ['same_state', 'cross_state']
+      
+      - name: price
+        description: "Item price amount"
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 10000
+      
+      - name: freight_value
+        description: "Freight cost for the item"
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 500
+      
+      - name: product_density
+        description: "Product weight density calculation (kg per cubic meter)"
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 10000
+              inclusive: true
+
 # =============================================================================
 # ANALYTICS LAYER TESTS
 # =============================================================================
@@ -321,31 +398,6 @@ tests:
     
   - name: geographic_coverage_completeness
     description: "Ensure all Brazilian states are represented in geographic analytics"
-#   - name: obt_customer_order_summary
-#     description: "Denormalized customer order analytics table"
-#     columns:
-#       - name: customer_id
-#         description: "Customer identifier"
-#         tests:
-#           - not_null
-#           - unique
-#   
-#   - name: obt_product_performance
-#     description: "Product sales and review performance analytics"
-#   
-#   - name: obt_seller_analytics
-#     description: "Seller performance and geography analytics"
-#   
-#   - name: obt_payment_behavior
-#     description: "Customer payment behavior and preferences"
-
-# =============================================================================
-# ANALYTICS LAYER TESTS
-# =============================================================================
-# Uncomment and modify the tests section when you create OBT models:
-# tests:
-#   - name: obt_data_freshness_check
-#     description: "Verify OBT tables are updated within expected timeframes"
-#   
-#   - name: obt_aggregation_accuracy
-#     description: "Verify aggregations match source fact table totals"
+    
+  - name: operation_performance_validation
+    description: "Verify operational metrics are within expected ranges and delivery SLAs are properly calculated"
