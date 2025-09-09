@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  streamlit-dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: streamlit-dashboard
+    environment:
+      # BigQuery Configuration (matches main project)
+      - BQ_PROJECT_ID=${BQ_PROJECT_ID:-project-olist-470307}
+      - BQ_RAW_DATASET=${BQ_RAW_DATASET:-raw_olist}
+      - BQ_STAGING_DATASET=${BQ_STAGING_DATASET:-staging_olist}
+      - BQ_WAREHOUSE_DATASET=${BQ_WAREHOUSE_DATASET:-warehouse_olist}
+      - BQ_ANALYTICS_DATASET=${BQ_ANALYTICS_DATASET:-dbt_olist_analytics}
+      
+      # Google Cloud Configuration
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/service-account-key.json
+      - GOOGLE_CLOUD_PROJECT=${BQ_PROJECT_ID:-project-olist-470307}
+      
+      # Streamlit specific environment variables
+      - STREAMLIT_SERVER_PORT=8501
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+      - STREAMLIT_SERVER_HEADLESS=true
+      - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+      
+    volumes:
+      # Mount Google Cloud credentials (read-only)
+      - ${GOOGLE_APPLICATION_CREDENTIALS:-./credentials/service-account-key.json}:/app/credentials/service-account-key.json:ro
+      # Mount logs directory
+      - ../logs:/app/logs
+      # Development mode: mount source code for live reload (optional)
+      - ./app.py:/app/app.py:ro
+      
+    ports:
+      - "8501:8501"
+      
+    networks:
+      - dashboard-network
+      
+    restart: unless-stopped
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+      
+    labels:
+      - "com.docker.compose.service=streamlit-dashboard"
+      - "description=Customer Analytics Dashboard for Olist E-commerce Data"
+
+networks:
+  dashboard-network:
+    driver: bridge
+    name: streamlit-dashboard-network
