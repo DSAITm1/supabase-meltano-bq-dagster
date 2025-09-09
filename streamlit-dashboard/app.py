@@ -68,7 +68,7 @@ COLOR_SCHEMES = {
     'engagement': 'inferno'
 }
 
-DEFAULT_STATES_LIMIT = 10
+DEFAULT_STATES_LIMIT = 100
 
 SPENDING_TIERS = {
     'bins': [0, 50, 100, 200, 500, 1000, float('inf')],
@@ -214,99 +214,12 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 def get_bigquery_client():
-    """Get BigQuery client based on authentication method"""
-    auth_method = os.getenv("BQ_AUTH_METHOD", "application_default").lower()
-    
-    if auth_method == "oauth":
-        return get_oauth_client()
-    elif auth_method == "service_account":
-        return get_service_account_client()
-    else:
-        # Application default credentials
+    """Get BigQuery client using Application Default Credentials"""
+    try:
         return bigquery.Client()
-
-def get_oauth_client():
-    """Get BigQuery client using OAuth authentication"""
-    from google.auth.transport.requests import Request
-    from google_auth_oauthlib.flow import Flow
-    import google.auth.credentials
-    
-    # Check if we already have OAuth credentials in session state
-    if 'oauth_credentials' in st.session_state:
-        credentials = st.session_state.oauth_credentials
-        
-        # Refresh credentials if needed
-        if credentials.expired and credentials.refresh_token:
-            credentials.refresh(Request())
-        
-        return bigquery.Client(credentials=credentials)
-    
-    # OAuth configuration
-    client_id = os.getenv("GOOGLE_CLIENT_ID")
-    client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
-    scopes = os.getenv("GOOGLE_OAUTH_SCOPES", "https://www.googleapis.com/auth/bigquery").split(",")
-    
-    if not client_id or not client_secret:
-        st.error("OAuth credentials not configured. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.")
-        st.stop()
-    
-    # Create OAuth flow
-    client_config = {
-        "web": {
-            "client_id": client_id,
-            "client_secret": client_secret,
-            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-            "token_uri": "https://oauth2.googleapis.com/token",
-            "redirect_uris": ["http://localhost:8501"]
-        }
-    }
-    
-    flow = Flow.from_client_config(
-        client_config,
-        scopes=scopes,
-        redirect_uri="http://localhost:8501"
-    )
-    
-    # Handle OAuth flow
-    query_params = st.query_params
-    
-    if "code" not in query_params:
-        # Step 1: Redirect to Google for authorization
-        auth_url, _ = flow.authorization_url(prompt='consent')
-        
-        st.markdown("### 🔐 BigQuery OAuth Authentication Required")
-        st.markdown("Click the button below to authenticate with Google BigQuery:")
-        
-        st.markdown(f'<a href="{auth_url}" target="_blank"><button style="background-color: #4285f4; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Authenticate with Google</button></a>', unsafe_allow_html=True)
-        
-        st.info("After authentication, you'll be redirected back to this page.")
-        st.stop()
-    else:
-        # Step 2: Handle the callback and get credentials
-        try:
-            flow.fetch_token(code=query_params["code"])
-            credentials = flow.credentials
-            
-            # Store credentials in session state
-            st.session_state.oauth_credentials = credentials
-            
-            # Clear the URL parameters
-            st.query_params.clear()
-            st.rerun()
-            
-        except Exception as e:
-            st.error(f"OAuth authentication failed: {str(e)}")
-            st.stop()
-
-def get_service_account_client():
-    """Get BigQuery client using service account credentials"""
-    credentials_json = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON")
-    if credentials_json:
-        credentials_info = json.loads(credentials_json)
-        project_id = credentials_info.get("project_id")
-        return bigquery.Client(project=project_id)
-    else:
-        st.error("Service account credentials not found. Please set GOOGLE_APPLICATION_CREDENTIALS_JSON.")
+    except Exception as e:
+        st.error(f"Failed to authenticate with Google Cloud: {str(e)}")
+        st.info("Please run: gcloud auth application-default login")
         st.stop()
 
 @st.cache_data(ttl=3600)  # Cache for 1 hour
@@ -315,11 +228,13 @@ def load_data():
     try:
         client = get_bigquery_client()
         
-        # Query customer analytics data
+        # Query customer analytics data - get only unique customers by customer_unique_id
         customer_query = f"""
-        SELECT *
-        FROM `{BQ_PROJECT_ID}.{BQ_DATASET}.{CUSTOMER_ANALYTICS_TABLE}`
-        LIMIT 50000
+        SELECT * FROM (
+            SELECT *,
+                   ROW_NUMBER() OVER (PARTITION BY customer_unique_id ORDER BY customer_unique_id) as rn
+            FROM `{BQ_PROJECT_ID}.{BQ_DATASET}.{CUSTOMER_ANALYTICS_TABLE}`
+        ) WHERE rn = 1
         """
         
         # Query geographic analytics data
@@ -443,7 +358,11 @@ def executive_summary_page(customer_df, geographic_df, filters):
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        total_customers = len(filtered_customer_df)
+        # Count unique customers instead of total rows
+        if 'customer_unique_id' in filtered_customer_df.columns:
+            total_customers = filtered_customer_df['customer_unique_id'].nunique()
+        else:
+            total_customers = len(filtered_customer_df)
         st.markdown(f"""
         <div class="metric-card">
             <div class="metric-label">Total Customers</div>
@@ -534,29 +453,54 @@ def executive_summary_page(customer_df, geographic_df, filters):
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.markdown("""
-        <div class="metric-card" style="border-left-color: #ff6b6b;">
+        # Calculate actual one-time buyer percentage
+        if 'total_orders' in filtered_customer_df.columns:
+            one_time_buyers = (filtered_customer_df['total_orders'] == 1).sum()
+            total_customers_count = len(filtered_customer_df)
+            one_time_percentage = (one_time_buyers / total_customers_count * 100) if total_customers_count > 0 else 0
+        else:
+            one_time_percentage = 0
+        
+        st.markdown(f"""
+        <div class="metric-card" style="border-left: 4px solid #ff6b6b;">
             <div class="metric-label">Customer Retention Challenge</div>
-            <div class="metric-value" style="color: #ff6b6b;">96.95%</div>
-            <div style="font-size: 0.8rem; color: #666;">One-time buyers - Major retention opportunity</div>
+            <div class="metric-value" style="color: #ff6b6b;">{one_time_percentage:.1f}%</div>
+            <div style="font-size: 0.85rem; color: #aaa; margin-top: 0.5rem;">One-time buyers - Major retention opportunity</div>
         </div>
         """, unsafe_allow_html=True)
     
     with col2:
-        st.markdown("""
-        <div class="metric-card" style="border-left-color: #4ecdc4;">
+        # Calculate geographic concentration for top 3 states
+        if 'customer_state' in filtered_customer_df.columns and 'total_spent' in filtered_customer_df.columns:
+            state_revenue = filtered_customer_df.groupby('customer_state')['total_spent'].sum().sort_values(ascending=False)
+            top_3_revenue = state_revenue.head(3).sum()
+            total_revenue_sum = state_revenue.sum()
+            geo_concentration = (top_3_revenue / total_revenue_sum * 100) if total_revenue_sum > 0 else 0
+        else:
+            geo_concentration = 0
+        
+        st.markdown(f"""
+        <div class="metric-card" style="border-left: 4px solid #4ecdc4;">
             <div class="metric-label">Geographic Concentration</div>
-            <div class="metric-value" style="color: #4ecdc4;">66.5%</div>
-            <div style="font-size: 0.8rem; color: #666;">Top 3 states - Expansion opportunity</div>
+            <div class="metric-value" style="color: #4ecdc4;">{geo_concentration:.1f}%</div>
+            <div style="font-size: 0.85rem; color: #aaa; margin-top: 0.5rem;">Top 3 states - Expansion opportunity</div>
         </div>
         """, unsafe_allow_html=True)
     
     with col3:
-        st.markdown("""
-        <div class="metric-card" style="border-left-color: #45b7d1;">
+        # Calculate potential revenue from retention strategies
+        if 'total_spent' in filtered_customer_df.columns and 'total_orders' in filtered_customer_df.columns:
+            one_timers = filtered_customer_df[filtered_customer_df['total_orders'] == 1]
+            avg_one_timer_value = one_timers['total_spent'].mean() if len(one_timers) > 0 else 0
+            potential_revenue = (len(one_timers) * 0.1 * avg_one_timer_value) / 1000  # 10% conversion, in thousands
+        else:
+            potential_revenue = 0
+        
+        st.markdown(f"""
+        <div class="metric-card" style="border-left: 4px solid #45b7d1;">
             <div class="metric-label">Revenue Potential</div>
-            <div class="metric-value" style="color: #45b7d1;">$2.67M</div>
-            <div style="font-size: 0.8rem; color: #666;">From retention & expansion strategies</div>
+            <div class="metric-value" style="color: #45b7d1;">${potential_revenue:.0f}K</div>
+            <div style="font-size: 0.85rem; color: #aaa; margin-top: 0.5rem;">From retention & expansion strategies</div>
         </div>
         """, unsafe_allow_html=True)
     
@@ -598,16 +542,16 @@ def executive_summary_page(customer_df, geographic_df, filters):
     with col2:
         st.subheader("🛒 Purchase Behavior Distribution")
         if 'total_orders' in filtered_customer_df.columns:
-            # Categorize customers by purchase behavior based on snapshot data
+            # Categorize customers by purchase behavior with dynamic percentages
             def categorize_purchase_behavior(orders):
                 if orders == 1:
-                    return "One-time Buyers (96.95%)"
+                    return "One-time Buyers"
                 elif orders <= 3:
-                    return "Occasional Buyers (3.00%)"
+                    return "Occasional Buyers"
                 elif orders <= 5:
-                    return "Regular Buyers (0.05%)"
+                    return "Regular Buyers"
                 else:
-                    return "Frequent Buyers (0.01%)"
+                    return "Frequent Buyers"
             
             # Create a copy to avoid modifying the original dataframe
             df_with_behavior = filtered_customer_df.copy()
@@ -616,13 +560,18 @@ def executive_summary_page(customer_df, geographic_df, filters):
             behavior_dist = df_with_behavior['purchase_behavior'].value_counts().reset_index()
             behavior_dist.columns = ['purchase_behavior', 'count']
             
+            # Calculate percentages and add to labels
+            total_customers_behavior = behavior_dist['count'].sum()
+            behavior_dist['percentage'] = (behavior_dist['count'] / total_customers_behavior * 100).round(1)
+            behavior_dist['label'] = behavior_dist['purchase_behavior'] + ' (' + behavior_dist['percentage'].astype(str) + '%)'
+            
             # Define colors that match the retention risk levels
             colors = ['#ff6b6b', '#ffa726', '#66bb6a', '#42a5f5']
             
             fig = px.pie(
                 behavior_dist,
                 values='count',
-                names='purchase_behavior',
+                names='label',
                 title='Customer Purchase Behavior',
                 color_discrete_sequence=colors
             )
@@ -637,37 +586,61 @@ def executive_summary_page(customer_df, geographic_df, filters):
     
     with col1:
         st.markdown("""
-        #### 🎯 Immediate Actions (Next 30 Days)
-        
-        **Customer Retention Campaign:**
-        - 3-email welcome series for new customers
-        - 15% second purchase discount
-        - Product recommendations based on first purchase
-        
-        **Segment-Specific Campaigns:**
-        - **Champions & Loyal**: VIP program launch
-        - **Potential Loyalists**: Increase personalization
-        - **New Customers**: Educational content series
-        - **Hibernating**: 25% win-back offer
-        """)
+        <div style="background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%); padding: 1.5rem; border-radius: 12px; border: 1px solid #333; margin-bottom: 1rem;">
+            <h4 style="color: #64ffda; margin-bottom: 1rem;">🎯 Immediate Actions (Next 30 Days)</h4>
+            
+            <div style="margin-bottom: 1rem;">
+                <strong style="color: #ffa726;">Customer Retention Campaign:</strong>
+                <ul style="margin-left: 1rem; color: #b3b3b3;">
+                    <li>3-email welcome series for new customers</li>
+                    <li>15% second purchase discount</li>
+                    <li>Product recommendations based on first purchase</li>
+                </ul>
+            </div>
+            
+            <div>
+                <strong style="color: #ffa726;">Segment-Specific Campaigns:</strong>
+                <ul style="margin-left: 1rem; color: #b3b3b3;">
+                    <li><strong>Champions & Loyal:</strong> VIP program launch</li>
+                    <li><strong>Potential Loyalists:</strong> Increase personalization</li>
+                    <li><strong>New Customers:</strong> Educational content series</li>
+                    <li><strong>Hibernating:</strong> 25% win-back offer</li>
+                </ul>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
     
     with col2:
         st.markdown("""
-        #### 📈 Revenue Opportunities
-        
-        **Customer Retention Strategy:**
-        - **Impact**: Convert 10% of one-time buyers
-        - **Potential**: $1.08M additional revenue
-        - **Actions**: Welcome series, loyalty program
-        
-        **Geographic Expansion:**
-        - **Focus**: States with <1,000 customers
-        - **Actions**: Regional marketing, local partnerships
-        
-        **AOV Optimization:**
-        - **Impact**: 5% AOV increase
-        - **Potential**: $679K additional revenue
-        """)
+        <div style="background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%); padding: 1.5rem; border-radius: 12px; border: 1px solid #333; margin-bottom: 1rem;">
+            <h4 style="color: #64ffda; margin-bottom: 1rem;">📈 Revenue Opportunities</h4>
+            
+            <div style="margin-bottom: 1rem;">
+                <strong style="color: #66bb6a;">Customer Retention Strategy:</strong>
+                <ul style="margin-left: 1rem; color: #b3b3b3;">
+                    <li><strong>Impact:</strong> Convert 10% of one-time buyers</li>
+                    <li><strong>Potential:</strong> Additional revenue opportunity</li>
+                    <li><strong>Actions:</strong> Welcome series, loyalty program</li>
+                </ul>
+            </div>
+            
+            <div style="margin-bottom: 1rem;">
+                <strong style="color: #66bb6a;">Geographic Expansion:</strong>
+                <ul style="margin-left: 1rem; color: #b3b3b3;">
+                    <li><strong>Focus:</strong> States with low market penetration</li>
+                    <li><strong>Actions:</strong> Regional marketing, local partnerships</li>
+                </ul>
+            </div>
+            
+            <div>
+                <strong style="color: #66bb6a;">AOV Optimization:</strong>
+                <ul style="margin-left: 1rem; color: #b3b3b3;">
+                    <li><strong>Impact:</strong> 5% AOV increase target</li>
+                    <li><strong>Actions:</strong> Cross-selling, bundling strategies</li>
+                </ul>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
     
     # Success Metrics
     st.markdown("---")
@@ -677,27 +650,39 @@ def executive_summary_page(customer_df, geographic_df, filters):
     
     with col1:
         st.markdown("""
-        **Primary Metrics:**
-        - Customer Retention Rate: 3% → 25%
-        - Repeat Purchase Rate: → 15%
-        - Avg CLV Increase: +30%
-        """)
+        <div class="metric-card">
+            <div style="color: #64ffda; font-weight: 600; margin-bottom: 1rem; font-size: 1.1rem;">🎯 Primary Metrics</div>
+            <div style="color: #b3b3b3; line-height: 1.8;">
+                • <strong>Customer Retention Rate:</strong> 3% → 25%<br>
+                • <strong>Repeat Purchase Rate:</strong> → 15%<br>
+                • <strong>Avg CLV Increase:</strong> +30%
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
     
     with col2:
         st.markdown("""
-        **Revenue Targets:**
-        - Revenue per Customer: +20%
-        - Geographic Diversification
-        - Segment Migration Upward
-        """)
+        <div class="metric-card">
+            <div style="color: #64ffda; font-weight: 600; margin-bottom: 1rem; font-size: 1.1rem;">💰 Revenue Targets</div>
+            <div style="color: #b3b3b3; line-height: 1.8;">
+                • <strong>Revenue per Customer:</strong> +20%<br>
+                • <strong>Geographic Diversification:</strong> Expand to new markets<br>
+                • <strong>Segment Migration:</strong> Move customers upward
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
     
     with col3:
         st.markdown("""
-        **Operational KPIs:**
-        - Customer Satisfaction: Maintain 4.0+
-        - Onboarding Effectiveness
-        - Reduce Concentration Risk
-        """)
+        <div class="metric-card">
+            <div style="color: #64ffda; font-weight: 600; margin-bottom: 1rem; font-size: 1.1rem;">⚡ Operational KPIs</div>
+            <div style="color: #b3b3b3; line-height: 1.8;">
+                • <strong>Customer Satisfaction:</strong> Maintain 4.0+<br>
+                • <strong>Onboarding Effectiveness:</strong> Improve conversion<br>
+                • <strong>Risk Reduction:</strong> Reduce concentration risk
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
 def customer_segmentation_page(customer_df, filters):
     """Customer Segmentation Analysis Page"""
@@ -724,7 +709,9 @@ def customer_segmentation_page(customer_df, filters):
             }).round(2)
             
             segment_stats.columns = ['Customers', 'Avg Spent', 'Total Revenue', 'Avg Orders', 'Avg Rating']
-            segment_stats['% of Base'] = (segment_stats['Customers'] / len(filtered_df) * 100).round(2)
+            # Use unique customer count for percentage calculation
+            total_unique_customers = filtered_df['customer_unique_id'].nunique() if 'customer_unique_id' in filtered_df.columns else len(filtered_df)
+            segment_stats['% of Base'] = (segment_stats['Customers'] / total_unique_customers * 100).round(2)
             
             # Sort by total revenue
             segment_stats = segment_stats.sort_values('Total Revenue', ascending=False)
@@ -736,11 +723,25 @@ def customer_segmentation_page(customer_df, filters):
         if 'customer_segment' in filtered_df.columns:
             segment_counts = filtered_df['customer_segment'].value_counts()
             
+            # Map segment names to more readable labels
+            segment_labels = {
+                'new_customer_high_value': 'New High Value',
+                'new_customer_low_value': 'New Low Value', 
+                'potential_loyalist': 'Potential Loyalist',
+                'loyal_customer': 'Loyal Customer',
+                'champion': 'Champion',
+                'hibernating': 'Hibernating'
+            }
+            
+            # Create readable labels
+            readable_names = [segment_labels.get(name, name) for name in segment_counts.index]
+            
             fig = px.pie(
                 values=segment_counts.values,
-                names=segment_counts.index,
-                title='Customer Segments'
+                names=readable_names,
+                title='Customer Segments Distribution'
             )
+            fig = apply_dark_theme(fig)
             st.plotly_chart(fig, use_container_width=True)
     
     st.markdown("---")
@@ -754,16 +755,28 @@ def customer_segmentation_page(customer_df, filters):
             segment_value = filtered_df.groupby('customer_segment')['total_spent'].mean().reset_index()
             segment_value = segment_value.sort_values('total_spent', ascending=False)
             
+            # Map segment names to more readable labels
+            segment_labels = {
+                'new_customer_high_value': 'New High Value',
+                'new_customer_low_value': 'New Low Value', 
+                'potential_loyalist': 'Potential Loyalist',
+                'loyal_customer': 'Loyal Customer',
+                'champion': 'Champion',
+                'hibernating': 'Hibernating'
+            }
+            segment_value['segment_display'] = segment_value['customer_segment'].map(segment_labels).fillna(segment_value['customer_segment'])
+            
             fig = px.bar(
                 segment_value,
-                x='customer_segment',
+                x='segment_display',
                 y='total_spent',
                 title='Average Customer Value by Segment',
-                labels={'total_spent': 'Average Spent ($)', 'customer_segment': 'Segment'},
+                labels={'total_spent': 'Average Spent ($)', 'segment_display': 'Customer Segment'},
                 color='total_spent',
                 color_continuous_scale='viridis'
             )
             fig.update_layout(xaxis_tickangle=-45)
+            fig = apply_dark_theme(fig)
             st.plotly_chart(fig, use_container_width=True)
     
     with col2:
@@ -777,9 +790,12 @@ def customer_segmentation_page(customer_df, filters):
                 x='frequency_tier',
                 y='count',
                 title='Purchase Frequency Distribution',
-                labels={'count': 'Number of Customers', 'frequency_tier': 'Frequency Tier'}
+                labels={'count': 'Number of Customers', 'frequency_tier': 'Frequency Tier'},
+                color='count',
+                color_continuous_scale='viridis'
             )
             fig.update_layout(xaxis_tickangle=-45)
+            fig = apply_dark_theme(fig)
             st.plotly_chart(fig, use_container_width=True)
     
     # Satisfaction Analysis
@@ -791,16 +807,28 @@ def customer_segmentation_page(customer_df, filters):
             satisfaction_by_segment = filtered_df.groupby('customer_segment')['avg_review_score'].mean().reset_index()
             satisfaction_by_segment = satisfaction_by_segment.sort_values('avg_review_score', ascending=False)
             
+            # Map segment names to more readable labels
+            segment_labels = {
+                'new_customer_high_value': 'New High Value',
+                'new_customer_low_value': 'New Low Value', 
+                'potential_loyalist': 'Potential Loyalist',
+                'loyal_customer': 'Loyal Customer',
+                'champion': 'Champion',
+                'hibernating': 'Hibernating'
+            }
+            satisfaction_by_segment['segment_display'] = satisfaction_by_segment['customer_segment'].map(segment_labels).fillna(satisfaction_by_segment['customer_segment'])
+            
             fig = px.bar(
                 satisfaction_by_segment,
-                x='customer_segment',
+                x='segment_display',
                 y='avg_review_score',
                 title='Average Satisfaction by Segment',
-                labels={'avg_review_score': 'Average Rating', 'customer_segment': 'Segment'},
+                labels={'avg_review_score': 'Average Rating', 'segment_display': 'Customer Segment'},
                 color='avg_review_score',
                 color_continuous_scale='RdYlGn'
             )
             fig.update_layout(xaxis_tickangle=-45, yaxis=dict(range=[0, 5]))
+            fig = apply_dark_theme(fig)
             st.plotly_chart(fig, use_container_width=True)
     
     with col2:
@@ -809,16 +837,28 @@ def customer_segmentation_page(customer_df, filters):
             clv_by_segment = filtered_df.groupby('customer_segment')['predicted_annual_clv'].mean().reset_index()
             clv_by_segment = clv_by_segment.sort_values('predicted_annual_clv', ascending=False)
             
+            # Map segment names to more readable labels
+            segment_labels = {
+                'new_customer_high_value': 'New High Value',
+                'new_customer_low_value': 'New Low Value', 
+                'potential_loyalist': 'Potential Loyalist',
+                'loyal_customer': 'Loyal Customer',
+                'champion': 'Champion',
+                'hibernating': 'Hibernating'
+            }
+            clv_by_segment['segment_display'] = clv_by_segment['customer_segment'].map(segment_labels).fillna(clv_by_segment['customer_segment'])
+            
             fig = px.bar(
                 clv_by_segment,
-                x='customer_segment',
+                x='segment_display',
                 y='predicted_annual_clv',
                 title='Average Predicted CLV by Segment',
-                labels={'predicted_annual_clv': 'Predicted Annual CLV ($)', 'customer_segment': 'Segment'},
+                labels={'predicted_annual_clv': 'Predicted Annual CLV ($)', 'segment_display': 'Customer Segment'},
                 color='predicted_annual_clv',
                 color_continuous_scale='plasma'
             )
             fig.update_layout(xaxis_tickangle=-45)
+            fig = apply_dark_theme(fig)
             st.plotly_chart(fig, use_container_width=True)
 
 def geographic_distribution_page(customer_df, geographic_df, filters):
@@ -872,6 +912,8 @@ def geographic_distribution_page(customer_df, geographic_df, filters):
                 color='total_spent',
                 color_continuous_scale='viridis'
             )
+            fig.update_layout(xaxis_tickangle=-45)
+            fig = apply_dark_theme(fig)
             st.plotly_chart(fig, use_container_width=True)
     
     with col2:
@@ -889,6 +931,8 @@ def geographic_distribution_page(customer_df, geographic_df, filters):
                 color='count',
                 color_continuous_scale='blues'
             )
+            fig.update_layout(xaxis_tickangle=-45)
+            fig = apply_dark_theme(fig)
             st.plotly_chart(fig, use_container_width=True)
     
     # Regional Analysis
@@ -919,6 +963,7 @@ def geographic_distribution_page(customer_df, geographic_df, filters):
                 names='market_tier',
                 title='Revenue Distribution by Market Tier'
             )
+            fig = apply_dark_theme(fig)
             st.plotly_chart(fig, use_container_width=True)
     
     # City-level insights
@@ -955,7 +1000,9 @@ def purchase_behavior_page(customer_df, filters):
             # Create order frequency bins
             frequency_stats = filtered_df.groupby('total_orders').size().reset_index()
             frequency_stats.columns = ['Orders', 'Customers']
-            frequency_stats['% of Base'] = (frequency_stats['Customers'] / len(filtered_df) * 100).round(2)
+            # Use unique customer count for percentage calculation
+            total_unique_customers = filtered_df['customer_unique_id'].nunique() if 'customer_unique_id' in filtered_df.columns else len(filtered_df)
+            frequency_stats['% of Base'] = (frequency_stats['Customers'] / total_unique_customers * 100).round(2)
             
             # Show top 10 most common order counts
             st.dataframe(frequency_stats.head(10), use_container_width=True)
@@ -984,6 +1031,7 @@ def purchase_behavior_page(customer_df, filters):
                 names=order_dist.index,
                 title='Customer Distribution by Order Frequency'
             )
+            fig = apply_dark_theme(fig)
             st.plotly_chart(fig, use_container_width=True)
     
     st.markdown("---")
@@ -1003,8 +1051,10 @@ def purchase_behavior_page(customer_df, filters):
                 y='avg_order_value',
                 title='Average Order Value vs Total Orders',
                 labels={'total_orders': 'Total Orders', 'avg_order_value': 'Average Order Value ($)'},
-                opacity=0.6
+                opacity=0.6,
+                color_discrete_sequence=['#64ffda']
             )
+            fig = apply_dark_theme(fig)
             st.plotly_chart(fig, use_container_width=True)
     
     with col2:
@@ -1030,6 +1080,7 @@ def purchase_behavior_page(customer_df, filters):
                 color='count',
                 color_continuous_scale='viridis'
             )
+            fig = apply_dark_theme(fig)
             st.plotly_chart(fig, use_container_width=True)
     
     # Payment and Product Behavior
@@ -1047,8 +1098,11 @@ def purchase_behavior_page(customer_df, filters):
                 x='Avg Installments',
                 y='Customers',
                 title='Customer Distribution by Average Installments Used',
-                labels={'Customers': 'Number of Customers', 'Avg Installments': 'Average Installments'}
+                labels={'Customers': 'Number of Customers', 'Avg Installments': 'Average Installments'},
+                color='Customers',
+                color_continuous_scale='plasma'
             )
+            fig = apply_dark_theme(fig)
             st.plotly_chart(fig, use_container_width=True)
     
     with col2:
@@ -1063,8 +1117,11 @@ def purchase_behavior_page(customer_df, filters):
                 x='Categories',
                 y='Customers',
                 title='Customer Distribution by Product Categories Purchased',
-                labels={'Customers': 'Number of Customers', 'Categories': 'Number of Categories'}
+                labels={'Customers': 'Number of Customers', 'Categories': 'Number of Categories'},
+                color='Customers',
+                color_continuous_scale='cividis'
             )
+            fig = apply_dark_theme(fig)
             st.plotly_chart(fig, use_container_width=True)
     
     # Customer Journey Insights
@@ -1090,9 +1147,12 @@ def purchase_behavior_page(customer_df, filters):
                 x='engagement_level',
                 y='count',
                 title='Customer Engagement Levels',
-                labels={'count': 'Number of Customers', 'engagement_level': 'Engagement Level'}
+                labels={'count': 'Number of Customers', 'engagement_level': 'Engagement Level'},
+                color='count',
+                color_continuous_scale='inferno'
             )
             fig.update_layout(xaxis_tickangle=-45)
+            fig = apply_dark_theme(fig)
             st.plotly_chart(fig, use_container_width=True)
     
     with col2:
@@ -1117,6 +1177,8 @@ def purchase_behavior_page(customer_df, filters):
                 color='count',
                 color_continuous_scale='reds_r'
             )
+            fig.update_layout(xaxis_tickangle=-45)
+            fig = apply_dark_theme(fig)
             st.plotly_chart(fig, use_container_width=True)
 
 def main():
