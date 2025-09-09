@@ -172,3 +172,9 @@ service-account*.json
 
 # Streamlit
 .streamlit/
+
+# Debug and test files
+debug_*.py
+test_*.py
+*_debug.py
+*_test.py
