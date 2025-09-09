@@ -68,18 +68,6 @@ COLOR_SCHEMES = {
     'engagement': 'inferno'
 }
 
-DEFAULT_STATES_LIMIT = 100
-
-SPENDING_TIERS = {
-    'bins': [0, 50, 100, 200, 500, 1000, float('inf')],
-    'labels': ['$0-50', '$50-100', '$100-200', '$200-500', '$500-1000', '$1000+']
-}
-
-CLV_TIERS = {
-    'bins': [0, 50, 100, 250, 500, 1000, float('inf')],
-    'labels': ['$0-50', '$50-100', '$100-250', '$250-500', '$500-1000', '$1000+']
-}
-
 # Page configuration
 st.set_page_config(
     page_title="Customer Analytics Dashboard",
@@ -1220,9 +1208,19 @@ def main():
     
     # Footer
     st.sidebar.markdown("---")
-    st.sidebar.markdown("**📊 Customer Analytics Dashboard**")
-    st.sidebar.markdown("Marketing Analytics Team")
-    st.sidebar.markdown(f"Last Updated: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    st.sidebar.markdown("""
+    <div style="text-align: center; padding: 1rem;">
+        <div style="color: #64ffda; font-weight: 600; font-size: 1.1rem; margin-bottom: 0.5rem;">
+            📊 Customer Analytics Dashboard
+        </div>
+        <div style="color: #b3b3b3; font-size: 0.9rem; margin-bottom: 0.5rem;">
+            Marketing Analytics Team
+        </div>
+        <div style="color: #888; font-size: 0.8rem;">
+            Last Updated: {datetime.now().strftime('%Y-%m-%d %H:%M')}
+        </div>
+    </div>
+    """.format(datetime=datetime), unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
