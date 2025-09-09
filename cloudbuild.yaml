@@ -44,14 +44,14 @@ steps:
     args: [
       'run', 'deploy', 'supabase-bq-pipeline',
       '--image', 'gcr.io/$PROJECT_ID/supabase-bq-pipeline:$BUILD_ID',
-      '--region', 'us-central1',
+      '--region', 'asia-southeast1',
       '--platform', 'managed',
       '--memory', '2Gi',
       '--cpu', '1',
       '--timeout', '3600',
       '--allow-unauthenticated',
-      '--set-env-vars', 'BQ_PROJECT_ID=$PROJECT_ID',
-      '--set-secrets', 'SUPABASE_URL=supabase-url:latest,SUPABASE_DB_PASSWORD=supabase-password:latest,SENDGRID_API_KEY=sendgrid-api-key:latest'
+      '--set-env-vars', 'BQ_PROJECT_ID=$PROJECT_ID,BQ_LOCATION=asia-southeast1',
+      '--set-secrets', 'SUPABASE_URL=supabase-url:latest,TAP_POSTGRES_PASSWORD=supabase-password:latest,SENDGRID_API_KEY=sendgrid-api-key:latest'
     ]
 
 # Configuration
@@ -65,7 +65,7 @@ timeout: 1800s
 
 # Substitutions for flexible builds
 substitutions:
-  _DEPLOY_REGION: 'us-central1'
+  _DEPLOY_REGION: 'asia-southeast1'
   _SERVICE_NAME: 'supabase-bq-pipeline'
 
 # Images to be pushed to Container Registry
