@@ -1208,7 +1208,8 @@ def main():
     
     # Footer
     st.sidebar.markdown("---")
-    st.sidebar.markdown("""
+    current_time = datetime.now().strftime('%Y-%m-%d %H:%M')
+    st.sidebar.markdown(f"""
     <div style="text-align: center; padding: 1rem;">
         <div style="color: #64ffda; font-weight: 600; font-size: 1.1rem; margin-bottom: 0.5rem;">
             📊 Customer Analytics Dashboard
@@ -1217,10 +1218,10 @@ def main():
             Marketing Analytics Team
         </div>
         <div style="color: #888; font-size: 0.8rem;">
-            Last Updated: {datetime.now().strftime('%Y-%m-%d %H:%M')}
+            Last Updated: {current_time}
         </div>
     </div>
-    """.format(datetime=datetime), unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
