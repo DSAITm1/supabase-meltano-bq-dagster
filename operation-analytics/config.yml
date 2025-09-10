@@ -1,0 +1,12 @@
+# Non-sensitive configuration for BigQuery access
+# OAuth is used for authentication; no secrets stored here.
+
+# Either set values here or via environment variables
+# (env vars override values in this file):
+# - BQ_PROJECT_ID
+# - BQ_SOURCE_DATASET
+# - BQ_TARGET_DATASET
+
+bq_project_id: "project-olist-470307"
+bq_source_dataset: "dbt_olist_dwh"
+bq_target_dataset: "dbt_olist_dwh"
