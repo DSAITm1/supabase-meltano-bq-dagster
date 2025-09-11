@@ -7,15 +7,14 @@ services:
       dockerfile: Dockerfile
     container_name: streamlit-dashboard
     environment:
-      # BigQuery Configuration (matches main project)
+      # BigQuery Configuration
       - BQ_PROJECT_ID=${BQ_PROJECT_ID:-project-olist-470307}
-      - BQ_RAW_DATASET=${BQ_RAW_DATASET:-raw_olist}
-      - BQ_STAGING_DATASET=${BQ_STAGING_DATASET:-staging_olist}
-      - BQ_WAREHOUSE_DATASET=${BQ_WAREHOUSE_DATASET:-warehouse_olist}
-      - BQ_ANALYTICS_DATASET=${BQ_ANALYTICS_DATASET:-dbt_olist_analytics}
+      - BQ_DATASET=${BQ_DATASET:-dbt_olist_analytics}
+      - CUSTOMER_ANALYTICS_TABLE=${CUSTOMER_ANALYTICS_TABLE:-customer_analytics_obt}
+      - GEOGRAPHIC_ANALYTICS_TABLE=${GEOGRAPHIC_ANALYTICS_TABLE:-geographic_analytics_obt}
       
       # Google Cloud Configuration
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/service-account-key.json
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/.config/gcloud/application_default_credentials.json
       - GOOGLE_CLOUD_PROJECT=${BQ_PROJECT_ID:-project-olist-470307}
       
       # Streamlit specific environment variables
@@ -26,7 +25,7 @@ services:
       
     volumes:
       # Mount Google Cloud credentials (read-only)
-      - ${GOOGLE_APPLICATION_CREDENTIALS:-./credentials/service-account-key.json}:/app/credentials/service-account-key.json:ro
+      - ~/.config/gcloud:/app/.config/gcloud:ro
       # Mount logs directory
       - ../logs:/app/logs
       # Development mode: mount source code for live reload (optional)
