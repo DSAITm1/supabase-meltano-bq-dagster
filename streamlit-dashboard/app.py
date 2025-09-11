@@ -205,11 +205,11 @@ def executive_summary_page(customer_df, geographic_df, filters):
 
     with col3:
         avg_customer_value = filtered_customer_df['total_spent'].mean() if 'total_spent' in filtered_customer_df.columns else 0
-        display_kpi_card("Average Customer Value", format_currency(avg_customer_value, 2))
+        display_kpi_card("Avg Customer Value", format_currency(avg_customer_value, 2))
 
     with col4:
         avg_satisfaction = filtered_customer_df['avg_review_score'].mean() if 'avg_review_score' in filtered_customer_df.columns else 0
-        display_kpi_card("Average Satisfaction", f"{avg_satisfaction:.2f} ⭐")
+        display_kpi_card("Avg Satisfaction", f"{avg_satisfaction:.2f} ⭐")
 
     # Additional Key Metrics - Second Row
     col1, col2, col3, col4 = st.columns(4)
@@ -220,24 +220,20 @@ def executive_summary_page(customer_df, geographic_df, filters):
             total_orders_sum = filtered_customer_df['total_orders'].sum()
             if total_orders_sum > 0:
                 avg_order_value = filtered_customer_df['total_spent'].sum() / total_orders_sum
-        display_metric_card("Average Order Value", format_currency(avg_order_value, 2))
+        display_metric_card("Avg Order Value", format_currency(avg_order_value, 2))
 
     with col2:
         predicted_clv = filtered_customer_df['predicted_annual_clv'].mean() if 'predicted_annual_clv' in filtered_customer_df.columns else 0
-        display_metric_card("Average CLV", format_currency(predicted_clv))
+        display_metric_card("Avg CLV", format_currency(predicted_clv))
 
     with col3:
-        if not geographic_df.empty:
-            states_count = len(geographic_df['state_code'].unique()) if 'state_code' in geographic_df.columns else 0
-        else:
-            states_count = len(filtered_customer_df['customer_state'].unique()) if 'customer_state' in filtered_customer_df.columns else 0
+        # Calculate states covered from filtered customer data
+        states_count = len(filtered_customer_df['customer_state'].unique()) if 'customer_state' in filtered_customer_df.columns else 0
         display_metric_card("States Covered", f"{states_count}")
 
     with col4:
-        if not geographic_df.empty:
-            cities_count = geographic_df['total_cities'].sum() if 'total_cities' in geographic_df.columns else 0
-        else:
-            cities_count = len(filtered_customer_df['customer_city'].unique()) if 'customer_city' in filtered_customer_df.columns else 0
+        # Calculate cities covered from filtered customer data
+        cities_count = len(filtered_customer_df['customer_city'].unique()) if 'customer_city' in filtered_customer_df.columns else 0
         display_metric_card("Cities Covered", f"{cities_count:,}")
 
     # Key Business Insights

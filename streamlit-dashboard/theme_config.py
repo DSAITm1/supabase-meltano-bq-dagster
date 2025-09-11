@@ -20,44 +20,45 @@ COLOR_SCHEMES = {
 
 # Theme colors
 THEME_COLORS = {
-    'primary': '#64ffda',
-    'background_dark': '#0e1117',
-    'background_secondary': '#1e1e1e',
-    'card_background': '#1a1a1a',
-    'card_gradient_start': '#1a1a1a',
-    'card_gradient_end': '#2d2d2d',
-    'border_color': '#333',
-    'text_primary': '#fafafa',
-    'text_secondary': '#b3b3b3',
-    'text_muted': '#888',
-    'text_accent': '#aaa',
-    'grid_color': '#333',
-    'line_color': '#555',
-    'scrollbar_track': '#1e1e1e',
-    'scrollbar_thumb': '#555',
-    'scrollbar_thumb_hover': '#777',
-    'success_bg': 'rgba(100, 255, 218, 0.1)',
-    'success_border': '#64ffda',
-    'info_bg': 'rgba(100, 181, 246, 0.1)',
-    'info_border': '#64b5f6',
-    'warning_bg': 'rgba(255, 193, 7, 0.1)',
-    'warning_border': '#ffc107'
+    'primary': '#1976d2',
+    'background_light': '#ffffff',
+    'background_secondary': '#f5f5f5',
+    'card_background': '#ffffff',
+    'card_gradient_start': '#ffffff',
+    'card_gradient_end': '#f8f9fa',
+    'border_color': '#e0e0e0',
+    'text_primary': '#2c2c2c',
+    'text_secondary': '#555555',
+    'text_muted': '#777777',
+    'text_accent': '#666666',
+    'grid_color': '#e0e0e0',
+    'line_color': '#cccccc',
+    'scrollbar_track': '#f5f5f5',
+    'scrollbar_thumb': '#cccccc',
+    'scrollbar_thumb_hover': '#999999',
+    'success_bg': 'rgba(76, 175, 80, 0.1)',
+    'success_border': '#4caf50',
+    'info_bg': 'rgba(33, 150, 243, 0.1)',
+    'info_border': '#2196f3',
+    'warning_bg': 'rgba(255, 152, 0, 0.1)',
+    'warning_border': '#ff9800'
 }
 
 def apply_dark_theme(fig):
     """
-    Apply dark theme to plotly charts
+    Apply light theme to plotly charts
+    Note: Function name kept for backward compatibility, but now applies light theme
 
     Args:
         fig: Plotly figure object
 
     Returns:
-        fig: Modified figure with dark theme applied
+        fig: Modified figure with light theme applied
     """
     fig.update_layout(
-        template="plotly_dark",
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)',
+        template="plotly_white",
+        paper_bgcolor='rgba(255,255,255,1)',
+        plot_bgcolor='rgba(255,255,255,1)',
         font_color=THEME_COLORS['text_primary'],
         title_font_color=THEME_COLORS['primary'],
         title_font_size=16,
@@ -65,7 +66,7 @@ def apply_dark_theme(fig):
         margin=dict(l=20, r=20, t=40, b=20),
         showlegend=True,
         legend=dict(
-            bgcolor='rgba(30,30,30,0.8)',
+            bgcolor='rgba(255,255,255,0.9)',
             bordercolor=THEME_COLORS['border_color'],
             borderwidth=1,
             font_color=THEME_COLORS['text_primary']
@@ -99,7 +100,7 @@ def get_custom_css():
 <style>
     /* Main app styling */
     .stApp {{
-        background-color: {THEME_COLORS['background_dark']};
+        background-color: {THEME_COLORS['background_light']};
         color: {THEME_COLORS['text_primary']};
     }}
 
@@ -115,7 +116,9 @@ def get_custom_css():
         color: {THEME_COLORS['primary']};
         text-align: center;
         margin-bottom: 2rem;
-        text-shadow: 0 0 10px rgba(100, 255, 218, 0.3);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
     }}
 
     /* Metric card styling */
@@ -125,21 +128,24 @@ def get_custom_css():
         border-radius: 12px;
         border: 1px solid {THEME_COLORS['border_color']};
         margin-bottom: 1rem;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         transition: transform 0.2s ease;
     }}
 
     .metric-card:hover {{
         transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
     }}
 
     .metric-value {{
         font-size: 2.2rem;
         font-weight: 700;
         color: {THEME_COLORS['primary']};
-        text-shadow: 0 0 8px rgba(100, 255, 218, 0.4);
         margin-bottom: 0.5rem;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        letter-spacing: -0.02em;
     }}
 
     .metric-label {{
@@ -147,6 +153,9 @@ def get_custom_css():
         color: {THEME_COLORS['text_secondary']};
         margin-bottom: 0.5rem;
         font-weight: 500;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
     }}
 
     /* Filter header styling */
@@ -158,6 +167,9 @@ def get_custom_css():
         margin-top: 1rem;
         padding-bottom: 0.5rem;
         border-bottom: 2px solid {THEME_COLORS['border_color']};
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
     }}
 
     /* Remove default streamlit styling */
@@ -183,10 +195,50 @@ def get_custom_css():
         background: {THEME_COLORS['scrollbar_thumb_hover']};
     }}
 
-    /* Subheader styling */
+    /* Text elements */
+    h1, h2, h3, h4, h5, h6 {{
+        color: {THEME_COLORS['text_primary']} !important;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif !important;
+        -webkit-font-smoothing: antialiased !important;
+        -moz-osx-font-smoothing: grayscale !important;
+    }}
+
+    p, div, span {{
+        color: {THEME_COLORS['text_primary']};
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }}
+
+    /* Streamlit widgets */
+    .stSelectbox label, .stMultiSelect label, .stSlider label {{
+        color: {THEME_COLORS['text_primary']} !important;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif !important;
+        -webkit-font-smoothing: antialiased !important;
+        -moz-osx-font-smoothing: grayscale !important;
+    }}
+
+    /* Markdown content */
+    .stMarkdown {{
+        color: {THEME_COLORS['text_primary']};
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }}
+
+    /* Global font settings */
+    * {{
+        -webkit-font-smoothing: antialiased !important;
+        -moz-osx-font-smoothing: grayscale !important;
+    }}
+
+    /* Streamlit specific text elements */
     .stSubheader {{
-        color: #e0e0e0 !important;
+        color: {THEME_COLORS['text_primary']} !important;
         font-weight: 600;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif !important;
+        -webkit-font-smoothing: antialiased !important;
+        -moz-osx-font-smoothing: grayscale !important;
     }}
 
     /* Dataframe styling */
@@ -194,22 +246,37 @@ def get_custom_css():
         background-color: {THEME_COLORS['card_background']};
         border: 1px solid {THEME_COLORS['border_color']};
         border-radius: 8px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
     }}
 
     /* Success/Info/Warning messages */
     .stSuccess {{
         background-color: {THEME_COLORS['success_bg']};
         border: 1px solid {THEME_COLORS['success_border']};
+        color: {THEME_COLORS['text_primary']};
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
     }}
 
     .stInfo {{
         background-color: {THEME_COLORS['info_bg']};
         border: 1px solid {THEME_COLORS['info_border']};
+        color: {THEME_COLORS['text_primary']};
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
     }}
 
     .stWarning {{
         background-color: {THEME_COLORS['warning_bg']};
         border: 1px solid {THEME_COLORS['warning_border']};
+        color: {THEME_COLORS['text_primary']};
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
     }}
 </style>
 """
@@ -249,8 +316,8 @@ SEGMENT_LABELS = {
 
 # Chart color sequences for different visualizations
 CHART_COLORS = {
-    'retention_risk': ['#ff6b6b', '#ffa726', '#66bb6a', '#42a5f5'],
-    'primary_accent': ['#64ffda'],
+    'retention_risk': ['#f44336', '#ff9800', '#4caf50', '#2196f3'],
+    'primary_accent': ['#1976d2'],
     'satisfaction_gradient': 'RdYlGn'
 }
 
@@ -338,12 +405,12 @@ def get_metric_card_style(border_color=None):
         str: CSS style string
     """
     base_style = """
-        background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
         padding: 1.5rem;
         border-radius: 12px;
-        border: 1px solid #333;
+        border: 1px solid #e0e0e0;
         margin-bottom: 1rem;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         transition: transform 0.2s ease;
     """
     
@@ -361,12 +428,15 @@ def get_metric_label_style():
     """
     return """
         font-size: 0.95rem;
-        color: #b3b3b3;
+        color: #555555;
         margin-bottom: 0.5rem;
         font-weight: 500;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
     """.strip()
 
-def get_metric_value_style(color="#64ffda"):
+def get_metric_value_style(color="#1976d2"):
     """
     Get inline CSS styles for metric values
     
@@ -380,8 +450,11 @@ def get_metric_value_style(color="#64ffda"):
         font-size: 2.2rem;
         font-weight: 700;
         color: {color};
-        text-shadow: 0 0 8px rgba(100, 255, 218, 0.4);
         margin-bottom: 0.5rem;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        letter-spacing: -0.02em;
     """.strip()
 
 def get_main_header_style():
@@ -394,10 +467,12 @@ def get_main_header_style():
     return """
         font-size: 2.5rem;
         font-weight: 600;
-        color: #64ffda;
+        color: #1976d2;
         text-align: center;
         margin-bottom: 2rem;
-        text-shadow: 0 0 10px rgba(100, 255, 218, 0.3);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
     """.strip()
 
 def get_filter_header_style():
@@ -410,15 +485,18 @@ def get_filter_header_style():
     return """
         font-size: 1.3rem;
         font-weight: 600;
-        color: #64ffda;
+        color: #1976d2;
         margin-bottom: 1rem;
         margin-top: 1rem;
         padding-bottom: 0.5rem;
-        border-bottom: 2px solid #333;
+        border-bottom: 2px solid #e0e0e0;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
     """.strip()
 
 # Consolidated HTML/CSS Template Functions
-def create_metric_card_html(title, value, description=None, color="#64ffda"):
+def create_metric_card_html(title, value, description=None, color="#1976d2"):
     """
     Create standardized metric card HTML
     
@@ -431,7 +509,7 @@ def create_metric_card_html(title, value, description=None, color="#64ffda"):
     Returns:
         str: Complete HTML string for metric card
     """
-    description_html = f'<div style="font-size: 0.85rem; color: #aaa; margin-top: 0.5rem;">{description}</div>' if description else ''
+    description_html = f'<div style="font-size: 0.85rem; color: #666666; margin-top: 0.5rem; font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', \'Roboto\', sans-serif; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;">{description}</div>' if description else ''
     
     return f"""
     <div style="{get_metric_card_style()}">
@@ -441,7 +519,7 @@ def create_metric_card_html(title, value, description=None, color="#64ffda"):
     </div>
     """
 
-def create_insight_card_html(title, value, description, border_color="#64ffda"):
+def create_insight_card_html(title, value, description, border_color="#1976d2"):
     """
     Create insight card with colored left border
     
@@ -458,7 +536,7 @@ def create_insight_card_html(title, value, description, border_color="#64ffda"):
     <div style="{get_metric_card_style()} border-left: 4px solid {border_color};">
         <div style="{get_metric_label_style()}">{title}</div>
         <div style="{get_metric_value_style(border_color)}">{value}</div>
-        <div style="font-size: 0.85rem; color: #aaa; margin-top: 0.5rem;">{description}</div>
+        <div style="font-size: 0.85rem; color: #666666; margin-top: 0.5rem; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;">{description}</div>
     </div>
     """
 
@@ -475,8 +553,8 @@ def create_kpi_card_html(title, value):
     """
     return f"""
     <div style="{get_metric_card_style()}">
-        <div style="color: #b3b3b3; font-size: 0.95rem; margin-bottom: 0.5rem; font-weight: 500;">{title}</div>
-        <div style="font-size: 2.2rem; font-weight: 700; color: #64ffda; text-shadow: 0 0 8px rgba(100, 255, 218, 0.4); margin-bottom: 0.5rem;">{value}</div>
+        <div style="color: #555555; font-size: 0.95rem; margin-bottom: 0.5rem; font-weight: 500; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;">{title}</div>
+        <div style="font-size: 2.2rem; font-weight: 700; color: #1976d2; margin-bottom: 0.5rem; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; letter-spacing: -0.02em;">{value}</div>
     </div>
     """
 
@@ -523,7 +601,7 @@ def create_content_card_container_end():
     return '</div>'
 
 # Streamlit Helper Functions for Clean Code
-def display_metric_card(title, value, description=None, color="#64ffda"):
+def display_metric_card(title, value, description=None, color="#1976d2"):
     """
     Display a metric card using Streamlit
     
@@ -535,7 +613,7 @@ def display_metric_card(title, value, description=None, color="#64ffda"):
     """
     st.markdown(create_metric_card_html(title, value, description, color), unsafe_allow_html=True)
 
-def display_insight_card(title, value, description, border_color="#64ffda"):
+def display_insight_card(title, value, description, border_color="#1976d2"):
     """
     Display an insight card with colored border
     
